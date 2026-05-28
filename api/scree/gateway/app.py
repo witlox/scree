@@ -36,6 +36,8 @@ from scree.access.identity import IdentityDirectory
 from scree.crypto.transit import FernetCrypto, TicketCrypto
 from scree.integration.o365.inbound import parse_inbound
 from scree.integration.slack.capture import CaptureRateLimiter, SlackDirectory
+from scree.migration.models import ArchiveStore, IdMap, SourceItem, SourceKind
+from scree.migration.pipeline import MigrationPipeline
 from scree.servicedesk.comments import CommentStore
 from scree.servicedesk.lifecycle import IllegalTransition
 from scree.servicedesk.quarantine import QuarantineStore
@@ -66,6 +68,20 @@ class TicketCreateIn(BaseModel):
 
 class TicketTransitionIn(BaseModel):
     status: str
+
+
+class SourceItemIn(BaseModel):
+    kind: SourceKind
+    old_id: str
+    title: str = ""
+    content: str = ""
+    marked: bool = False
+    reporter: str | None = None
+    space: str = "support/service-desk"
+
+
+class MigrationRunIn(BaseModel):
+    items: list[SourceItemIn]
 
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
@@ -154,6 +170,8 @@ def create_app(
     services = service_principals or set()
     archived = archived_spaces or set()
     orphan_cache = OrphanCache()
+    id_map = IdMap()  # migration old→new id mapping (INV-MIG-1), survives the app's lifetime
+    archive_store = ArchiveStore()
     # G9-01 (AR-08): short-TTL caches so a busy Gateway doesn't exchange tokens /
     # resolve GitLab membership on every request.
     _token_cache: TtlCache[str] = TtlCache(ttl=60.0)
@@ -288,6 +306,14 @@ def create_app(
         )
         orphan_cache.report = report
         return {"refreshed": True, "as_of": report.as_of}
+
+    @app.get("/migration/resolve/{legacy_id:path}")
+    def resolve_legacy(legacy_id: str, principal: str = Depends(get_principal)) -> dict:
+        # INV-MIG-1: a legacy reference resolves to its migrated item (no broken links).
+        new_id = id_map.resolve(legacy_id)
+        if new_id is None:
+            raise HTTPException(status_code=404, detail="no mapping for legacy id")
+        return {"legacy_id": legacy_id, "resolved": new_id}
 
     @app.get("/orphans")
     def orphans(principal: str = Depends(get_principal)) -> dict:
@@ -516,5 +542,18 @@ def create_app(
             if principal not in compliance:
                 raise HTTPException(status_code=403, detail="erasure is compliance-only")
             return erasure.erase(opaque_id, actor=principal)
+
+        migration = MigrationPipeline(service, id_map, archive_store,
+                                      doc_writer=doc_writer, identity=identity)
+
+        @app.post("/migration/run")
+        def run_migration(body: MigrationRunIn, principal: str = Depends(get_principal)) -> dict:
+            # Big-bang cutover batch — service principal only (DD-006/DD-014).
+            if principal not in services:
+                raise HTTPException(status_code=403, detail="migration is service-principal only")
+            items = [SourceItem(kind=i.kind, old_id=i.old_id, title=i.title, content=i.content,
+                                marked=i.marked, reporter=i.reporter, space=i.space)
+                     for i in body.items]
+            return migration.run(items)
 
     return app
