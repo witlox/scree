@@ -27,6 +27,8 @@ from scree.planning.rollup import portfolio
 from scree.risk.models import Risk, RiskCategory, Strategy
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
+from scree.integration.o365.inbound import parse_inbound
+from scree.servicedesk.comments import CommentStore
 from scree.servicedesk.lifecycle import IllegalTransition
 from scree.servicedesk.models import Origin
 from scree.servicedesk.service import Forbidden, NotPromotable, TicketNotFound, TicketService
@@ -87,6 +89,7 @@ def create_app(
     doc_writer: DocService | None = None,
     authenticator: OidcAuthenticator | None = None,
     risk_store: RiskStore | None = None,
+    comment_store: CommentStore | None = None,
     planning_index: PlanningIndex | None = None,
     planning_authority: PlanningAuthority | None = None,
     audit: AuditSink | None = None,
@@ -233,7 +236,7 @@ def create_app(
             return doc_writer.write(path, content, principal, base_rev)
 
     if ticket_store is not None and ticket_authority is not None:
-        service = TicketService(ticket_store, ticket_authority)
+        service = TicketService(ticket_store, ticket_authority, comment_store=comment_store)
 
         def _requester_for(t, principal: str) -> str | None:
             # G2-06: only agents/the requester/related parties see who filed it;
@@ -283,5 +286,17 @@ def create_app(
         def promote(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
             t = service.promote_community_visible(ticket_id, principal)
             return {"id": t.id, "community_visible": t.community_visible}
+
+        @app.post("/tickets/inbound-email")
+        def inbound_email(
+            raw: str = Body(..., embed=True),
+            principal: str = Depends(get_principal),
+        ) -> dict:
+            # DD-006: the email poller is a separate service that posts here; only
+            # a trusted agent/service principal may ingest mail (the verified sender
+            # — not the caller — becomes the requester, INV-EMAIL-1 / G2-02).
+            if not ticket_authority.is_agent(principal):
+                raise HTTPException(status_code=403, detail="email ingestion is agent-only")
+            return service.ingest_email(parse_inbound(raw))
 
     return app
