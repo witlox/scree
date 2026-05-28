@@ -27,7 +27,7 @@ from scree.planning.rollup import portfolio
 from scree.risk.models import Risk, RiskCategory, Strategy
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
-from scree.access.erasure import ErasureService
+from scree.access.erasure import ErasureReceiptStore, ErasureService
 from scree.access.identity import IdentityDirectory
 from scree.integration.o365.inbound import parse_inbound
 from scree.servicedesk.comments import CommentStore
@@ -247,11 +247,12 @@ def create_app(
         identity = identity_directory or IdentityDirectory()
         quarantine = quarantine_store or QuarantineStore()
         compliance = compliance_principals or set()  # fail-closed: no one erases unless configured
+        receipts = ErasureReceiptStore()
         service = TicketService(
             ticket_store, ticket_authority, comment_store=comment_store,
             identity=identity, quarantine=quarantine,
         )
-        erasure = ErasureService(identity, ticket_authority)
+        erasure = ErasureService(identity, ticket_authority, quarantine=quarantine, receipts=receipts)
 
         def _requester_for(t, principal: str) -> str | None:
             # G2-06: only agents/the requester/related parties see who filed it;
@@ -330,12 +331,22 @@ def create_app(
                 raise HTTPException(status_code=413, detail="inbound email too large")
             return service.ingest_email(parse_inbound(raw), verified=verified, sender=sender)
 
+        @app.get("/identities/erasures")
+        def list_erasures(principal: str = Depends(get_principal)) -> list[dict]:
+            # G5-03: durable erasure receipts for compliance evidence (DPO only).
+            if principal not in compliance:
+                raise HTTPException(status_code=403, detail="erasure log is compliance-only")
+            return [{"subject": r.subject, "actor": r.actor, "at": r.at,
+                     "identity_removed": r.identity_removed, "relations_purged": r.relations_purged,
+                     "quarantine_purged": r.quarantine_purged} for r in receipts.all()]
+
         @app.delete("/identities/{opaque_id}")
         def erase_identity(opaque_id: str, principal: str = Depends(get_principal)) -> dict:
             # GDPR erasure (INV-DP-2): compliance/DPO role only. Anonymizes by
-            # deleting the identity record + purging OpenFGA tuples; Git untouched.
+            # deleting the identity record, purging OpenFGA tuples, and scrubbing
+            # the quarantine queue; Git untouched (residual disclosed in response).
             if principal not in compliance:
                 raise HTTPException(status_code=403, detail="erasure is compliance-only")
-            return erasure.erase(opaque_id)
+            return erasure.erase(opaque_id, actor=principal)
 
     return app

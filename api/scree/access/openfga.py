@@ -114,23 +114,34 @@ class RealOpenFga:
         )
         resp.raise_for_status()
 
+    DELETE_BATCH = 100  # OpenFGA caps tuple_keys per write
+
     def purge_user(self, user: str) -> int:
-        # AR-05: read the subject's stored tuples, then delete them. (Deletes need
-        # the exact (user, relation, object), not the derived `viewer` relation.)
-        # OpenFGA Read requires an object filter, so scope by the `ticket:` type.
-        read = self._client.post(
-            f"{self._base}/stores/{self._store}/read",
-            json={"tuple_key": {"object": "ticket:", "user": fga_user(user)}},
-        )
-        read.raise_for_status()
-        keys = [t["key"] for t in read.json().get("tuples", [])]
-        if not keys:
-            return 0
-        delete = self._client.post(
-            f"{self._base}/stores/{self._store}/write",
-            json={"deletes": {"tuple_keys": [
-                {"user": k["user"], "relation": k["relation"], "object": k["object"]} for k in keys
-            ]}},
-        )
-        delete.raise_for_status()
+        # AR-05: read ALL the subject's stored tuples (following pagination, G5-01),
+        # then delete them in batches. Deletes need the exact (user, relation,
+        # object), not the derived `viewer` relation. Read requires an object
+        # filter, so scope by the `ticket:` type — the only object type in the
+        # model today; add types here if the authz model grows.
+        keys: list[dict] = []
+        cursor: str | None = None
+        while True:
+            body: dict = {"tuple_key": {"object": "ticket:", "user": fga_user(user)}, "page_size": 100}
+            if cursor:
+                body["continuation_token"] = cursor
+            read = self._client.post(f"{self._base}/stores/{self._store}/read", json=body)
+            read.raise_for_status()
+            data = read.json()
+            keys.extend(t["key"] for t in data.get("tuples", []))
+            cursor = data.get("continuation_token") or None
+            if not cursor:
+                break
+        for i in range(0, len(keys), self.DELETE_BATCH):
+            chunk = keys[i:i + self.DELETE_BATCH]
+            delete = self._client.post(
+                f"{self._base}/stores/{self._store}/write",
+                json={"deletes": {"tuple_keys": [
+                    {"user": k["user"], "relation": k["relation"], "object": k["object"]} for k in chunk
+                ]}},
+            )
+            delete.raise_for_status()
         return len(keys)

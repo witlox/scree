@@ -25,3 +25,11 @@ class QuarantineStore:
 
     def all(self) -> list[QuarantinedEmail]:
         return list(self._items)
+
+    def purge_sender(self, email: str) -> int:
+        # GDPR erasure (G5-02): drop quarantined mail whose claimed sender matches.
+        key = email.strip().lower()
+        doomed = [q for q in self._items if q.claimed_from.strip().lower() == key]
+        for q in doomed:
+            self._items.remove(q)
+        return len(doomed)
