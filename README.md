@@ -1,6 +1,6 @@
 # Scree
 
-**Git-native knowledge, planning, and service desk for an org leaving Atlassian.**
+**Git-native knowledge, planning, and service desk.**
 
 A custom application layer on top of GitLab Ultimate self-managed, providing knowledge management, external customer service desk, and cross-project portfolio/risk aggregation. All primary data stored as markdown with YAML frontmatter in Git repositories.
 
