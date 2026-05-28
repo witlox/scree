@@ -237,6 +237,10 @@ class TicketService:
             raise Forbidden(principal)
         if ticket.status != "resolved":
             raise NotPromotable(ticket_id)  # INV-LC-2: resolved-only
+        if ticket.encrypted:
+            # G11-01: an encrypted (sensitive) ticket must not become a public
+            # community snapshot — its content would have to be decrypted into the KB.
+            raise NotPromotable(ticket_id)
         updated = replace(ticket, community_visible=True)
         self._store.put(updated)
         return updated
