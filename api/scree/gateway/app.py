@@ -2,6 +2,9 @@ from fastapi import Body, FastAPI, Header, HTTPException
 
 from scree.access.authority import Authority
 from scree.access.ticket_authority import TicketAuthority
+from scree.knowledge.doc_service import DocService, MRRequired
+from scree.knowledge.doc_service import Forbidden as DocForbidden
+from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.store import DocStore
 from scree.servicedesk.lifecycle import IllegalTransition
 from scree.servicedesk.service import (
@@ -19,6 +22,7 @@ def create_app(
     *,
     ticket_store: TicketStore | None = None,
     ticket_authority: TicketAuthority | None = None,
+    doc_writer: DocService | None = None,
 ) -> FastAPI:
     """The single enforcement point (spike). Identity is a stub header
     (X-Spike-User) — real OIDC/token-exchange comes later."""
@@ -41,6 +45,23 @@ def create_app(
         if d is None or not authority.can_read(x_spike_user, d):
             raise HTTPException(status_code=404)
         return {"id": d.id, "title": d.title, "space": d.space, "body": d.body}
+
+    if doc_writer is not None:
+
+        @app.post("/docs")
+        def write_doc(
+            path: str = Body(..., embed=True),
+            content: str = Body(..., embed=True),
+            x_spike_user: str = Header(...),
+        ) -> dict:
+            try:
+                return doc_writer.write(path, content, x_spike_user)
+            except InvalidFrontmatter:
+                raise HTTPException(status_code=422, detail="invalid frontmatter")
+            except DocForbidden:
+                raise HTTPException(status_code=403)
+            except MRRequired:
+                raise HTTPException(status_code=409, detail="MR required (governed path)")
 
     if ticket_store is not None and ticket_authority is not None:
 
