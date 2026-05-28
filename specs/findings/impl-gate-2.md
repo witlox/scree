@@ -214,3 +214,8 @@ decoupled from where the file actually lands.
 **Recommendation / gate:** G2-01, G2-02, G2-03 are `gate:blocking` and must be
 fixed before integrator phase. Per project policy all 11 are fixed before
 graduation; severity sets order.
+
+**Resolution (2026-05-28):** all 11 resolved across PRs #51 (knowledge-write
+hardening: G2-01/04/07/11), #52 (gateway identity & audit: G2-02/03/05/08/10),
+and #53 (validation & privacy: G2-06/09). See INDEX.md for the per-finding PR
+mapping.

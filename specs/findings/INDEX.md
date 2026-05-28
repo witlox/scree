@@ -80,16 +80,16 @@ Adversarial pass over the merged custom layer after gate-1 + OIDC/Keycloak (PRs 
 
 | ID | Sev | Category | Finding | Status |
 |---|---|---|---|---|
-| G2-01 | **High** | Security/path-traversal | Arbitrary file write via doc-write `path` | open |
-| G2-02 | **High** | Security/authz | Ticket create trusts client `requester`, ignores principal | open |
-| G2-03 | **High** | Security/identity | Auth default-off; X-Spike-User header trusted (I-03 follow-up) | open |
-| G2-04 | Medium | Security/authz | Write authority on frontmatter `space`, not `path` | open |
-| G2-05 | Medium | Security/identity | Principal from mutable `preferred_username` not `sub` | open |
-| G2-06 | Medium | Privacy/aggregation | community_visible views leak opaque `requester` | open |
-| G2-07 | Medium | Robustness/DoS | YAML frontmatter unbounded (alias bomb, size) | open |
-| G2-08 | Medium | Robustness/observability | 5xx bypasses audit middleware | open |
-| G2-09 | Low | Correctness/input | Risk/ticket inputs not range/enum validated | open |
-| G2-10 | Low | Security/identity | `/risks/assess` unauthenticated | open |
-| G2-11 | Low | Robustness/concurrency | Git `index.lock` races → 500 | open |
+| G2-01 | **High** | Security/path-traversal | Arbitrary file write via doc-write `path` | ✅ #51 (is_safe_relpath confines writes) |
+| G2-02 | **High** | Security/authz | Ticket create trusts client `requester`, ignores principal | ✅ #52 (requester bound to principal; agent-only on-behalf) |
+| G2-03 | **High** | Security/identity | Auth default-off; X-Spike-User header trusted (I-03 follow-up) | ✅ #52 (fail-closed; allow_insecure_header_auth opt-in) |
+| G2-04 | Medium | Security/authz | Write authority on frontmatter `space`, not `path` | ✅ #51 (DocService space binding; SpaceMismatch) |
+| G2-05 | Medium | Security/identity | Principal from mutable `preferred_username` not `sub` | ✅ #52 (principal = sub) |
+| G2-06 | Medium | Privacy/aggregation | community_visible views leak opaque `requester` | ✅ #53 (can_see_identity; requester redacted) |
+| G2-07 | Medium | Robustness/DoS | YAML frontmatter unbounded (alias bomb, size) | ✅ #51 (no-alias loader + size caps) |
+| G2-08 | Medium | Robustness/observability | 5xx bypasses audit middleware | ✅ #52 (audit in finally) |
+| G2-09 | Low | Correctness/input | Risk/ticket inputs not range/enum validated | ✅ #53 (Pydantic models; range/enum) |
+| G2-10 | Low | Security/identity | `/risks/assess` unauthenticated | ✅ #52 (requires get_principal) |
+| G2-11 | Low | Robustness/concurrency | Git `index.lock` races → 500 | ✅ #51 (per-repo write lock; GitWriteError→409) |
 
-**Counts:** 3 high · 5 medium · 3 low — **11 total.** G2-01/02/03 `gate:blocking`.
+**Counts:** 3 high · 5 medium · 3 low — **11 total, all resolved.** G2-01/02/03 were `gate:blocking`.

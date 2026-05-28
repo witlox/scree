@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from scree.access.audit import AuditSink
 from scree.access.authority import Authority
@@ -20,12 +21,35 @@ from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.git_store import GitWriteError
 from scree.knowledge.store import DocStore
-from scree.risk.models import Risk
+from scree.risk.models import Risk, RiskCategory, Strategy
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
 from scree.servicedesk.lifecycle import IllegalTransition
+from scree.servicedesk.models import Origin
 from scree.servicedesk.service import Forbidden, NotPromotable, TicketNotFound, TicketService
 from scree.servicedesk.store import TicketStore
+
+
+# G2-09: validate every external input at the boundary (422 on bad enum/range).
+class RiskAssessIn(BaseModel):
+    category: RiskCategory
+    likelihood: int = Field(ge=1, le=5)
+    impact: int = Field(ge=1, le=5)
+
+
+class RiskCreateIn(RiskAssessIn):
+    title: str = Field(min_length=1)
+    space: str = Field(min_length=1)
+    strategy: Strategy = "mitigated"
+
+
+class TicketCreateIn(BaseModel):
+    origin: Origin
+    requester: str | None = None
+
+
+class TicketTransitionIn(BaseModel):
+    status: str
 
 # Central error taxonomy: domain exception -> HTTP status (error-taxonomy.md, I-10).
 _ERROR_STATUS: dict[type[Exception], int] = {
@@ -117,13 +141,11 @@ def create_app(
 
     @app.post("/risks/assess")
     def assess_risk(
-        category: str = Body(..., embed=True),
-        likelihood: int = Body(..., embed=True),
-        impact: int = Body(..., embed=True),
+        body: RiskAssessIn,
         principal: str = Depends(get_principal),  # G2-10: authenticated like every action
     ) -> dict:
-        risk = Risk(id="(preview)", title="", space="", category=category,
-                    likelihood=likelihood, impact=impact, strategy="mitigated")
+        risk = Risk(id="(preview)", title="", space="", category=body.category,
+                    likelihood=body.likelihood, impact=body.impact, strategy="mitigated")
         return {"score": risk.score, "severity": risk.severity,
                 "fires_critical_webhook": fires_critical_webhook(risk)}
 
@@ -136,18 +158,14 @@ def create_app(
 
         @app.post("/risks")
         def create_risk(
-            title: str = Body(..., embed=True),
-            space: str = Body(..., embed=True),
-            category: str = Body(..., embed=True),
-            likelihood: int = Body(..., embed=True),
-            impact: int = Body(..., embed=True),
-            strategy: str = Body("mitigated", embed=True),
+            body: RiskCreateIn,
             principal: str = Depends(get_principal),
         ) -> dict:
-            if not authority.can_write(principal, space):
+            if not authority.can_write(principal, body.space):
                 raise HTTPException(status_code=403)
-            risk = Risk(id=f"risk-{uuid.uuid4().hex[:8]}", title=title, space=space,
-                        category=category, likelihood=likelihood, impact=impact, strategy=strategy)
+            risk = Risk(id=f"risk-{uuid.uuid4().hex[:8]}", title=body.title, space=body.space,
+                        category=body.category, likelihood=body.likelihood,
+                        impact=body.impact, strategy=body.strategy)
             risk_store.put(risk)
             return _risk_view(risk)
 
@@ -183,42 +201,48 @@ def create_app(
     if ticket_store is not None and ticket_authority is not None:
         service = TicketService(ticket_store, ticket_authority)
 
+        def _requester_for(t, principal: str) -> str | None:
+            # G2-06: only agents/the requester/related parties see who filed it;
+            # a community_visible-only viewer gets None.
+            return t.requester if ticket_authority.can_see_identity(principal, t) else None
+
         @app.get("/tickets")
         def list_tickets(principal: str = Depends(get_principal)) -> list[dict]:
             tickets = ticket_store.all()
             readable = ticket_authority.readable_tickets(principal, tickets)
-            return [{"id": t.id, "requester": t.requester} for t in tickets if t.id in readable]
+            return [{"id": t.id, "requester": _requester_for(t, principal)}
+                    for t in tickets if t.id in readable]
 
         @app.get("/tickets/{ticket_id}")
         def get_ticket(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
             t = ticket_store.get(ticket_id)
             if t is None or not ticket_authority.can_read(principal, t):
                 raise HTTPException(status_code=404)
-            return {"id": t.id, "requester": t.requester, "status": t.status,
+            return {"id": t.id, "requester": _requester_for(t, principal), "status": t.status,
                     "community_visible": t.community_visible}
 
         @app.post("/tickets")
         def create_ticket(
-            origin: str = Body(..., embed=True),
-            requester: str | None = Body(default=None, embed=True),
+            body: TicketCreateIn,
             principal: str = Depends(get_principal),
         ) -> dict:
             # G2-02: bind the requester to the authenticated principal. Only an
             # agent may open a ticket on behalf of another requester.
+            requester = body.requester
             if requester and requester != principal and not ticket_authority.is_agent(principal):
                 raise HTTPException(status_code=403, detail="cannot create ticket for another requester")
             effective_requester = requester if (requester and ticket_authority.is_agent(principal)) else principal
-            t = service.create(origin, effective_requester)
+            t = service.create(body.origin, effective_requester)
             return {"id": t.id, "requester": t.requester, "origin": t.origin,
                     "status": t.status, "community_visible": t.community_visible}
 
         @app.patch("/tickets/{ticket_id}")
         def transition_ticket(
             ticket_id: str,
-            status: str = Body(..., embed=True),
+            body: TicketTransitionIn,
             principal: str = Depends(get_principal),
         ) -> dict:
-            t = service.transition(ticket_id, status, principal)
+            t = service.transition(ticket_id, body.status, principal)
             return {"id": t.id, "status": t.status, "community_visible": t.community_visible}
 
         @app.post("/tickets/{ticket_id}/community-visible")
