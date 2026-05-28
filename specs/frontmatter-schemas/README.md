@@ -15,7 +15,7 @@ Field specs live per kind: [`doc.md`](doc.md), [`ticket.md`](ticket.md),
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `id` | string | yes | Stable, unique, kind-prefixed (`doc-…`, `ticket-2026-000123`, `risk-2026-001`). Never changes (INV-ST-4). |
+| `id` | string | yes | Stable, unique, kind-prefixed (`doc-…`, `ticket-2026-000123`, `risk-2026-001`). Never changes (INV-ST-4). Allocated by the Gateway (per-kind sequence) to guarantee uniqueness without cross-repo races (F-08). |
 | `kind` | enum `doc\|ticket\|risk` | yes | Type discriminator. |
 | `schema_version` | int ≥ 1 | yes | Present from first commit (DD-021, INV-ST-3). |
 | `title` | string | yes | Human-readable. |
@@ -48,4 +48,5 @@ author, and the full audit history (INV-ST-5).
 - Enums are closed sets; an unknown value is a validation failure.
 - Dates are ISO-8601 (`YYYY-MM-DD`).
 - References are by `id`; a dangling/unreadable reference renders "unavailable"
-  with no content leak (INV-REF-3).
+  with no content leak (INV-REF-3); the Gateway also withholds the `target_id` of a
+  cross-boundary unreadable referent (INV-REF-5).

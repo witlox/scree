@@ -58,6 +58,13 @@ a GitLab repository. The aggregate carries the **cross-cutting core**; each
 `created`, `updated`, and `audit` are **projections of Git**, never independent
 fields — Git is the source of truth (DD-002).
 
+**Sensitive content is encrypted at rest** (ADR-0005): private ticket bodies and
+designated sensitive doc/risk spaces are stored as ciphertext, with cleartext only
+in authorized memory and the access-controlled index. Internal sensitive content
+uses client-side keys (offline read preserved for key-holders); external-customer
+private tickets use Gateway-mediated keys. Routing/permission metadata stays
+cleartext. See INV-ENC-*.
+
 ### Kinds
 
 - **Doc** (Knowledge) — has **versions, not states**. No state machine. Lives at

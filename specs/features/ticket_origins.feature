@@ -35,6 +35,13 @@ Feature: Multi-origin ticket creation and email threading (OQ-A-007, OQ-A-014)
     Then a new ticket is created
     And it is not appended to "ticket-2026-000123"
 
+  @contract
+  Scenario: A spoofed or mismatched sender is quarantined, not appended (INV-EMAIL-1)
+    Given ticket "ticket-2026-000123" has requester "ext:r.okafor@uni.example.ac"
+    When an inbound email quoting "[SCREE-123]" arrives from unverified sender "attacker@evil.example"
+    Then the email is not appended to "ticket-2026-000123"
+    And it is quarantined for agent review
+
   @api
   Scenario: An agent can merge two tickets that were the same conversation
     Given tickets "ticket-2026-000123" and "ticket-2026-000131" exist

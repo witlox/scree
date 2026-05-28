@@ -14,7 +14,7 @@ A service-desk Resource. `status` ∈ {`open`, `resolved`, `closed`} with reopen
 | `community_visible` | bool (default `false`) | yes | Orthogonal to status; promoting requires explicit agent action (INV-LC-2, DD-013). |
 | `origin` | enum `email\|web\|slack\|api` | yes | How the ticket was created (multi-channel unification). |
 | `origin_ref` | object | no | Origin-specific handle: email `Message-ID`, Slack `{channel, thread_ts}`, etc. |
-| `email_token` | string | no | Threading fallback token, e.g. `SCREE-123`, embedded in outbound subjects (OQ-A-014). Present once a ticket has an email touchpoint. |
+| `email_token` | string | no | Threading fallback token, e.g. `SCREE-123`, embedded in outbound subjects (OQ-A-014). **Low-trust:** a matching token is a threading *candidate* only; appending also requires a verified-sender match (INV-EMAIL-1). |
 | `sla_due` | date-time | no | Optional SLA target surfaced to the customer. |
 
 `owner` (core) defaults to the assignee or the desk; `space` is the service-desk

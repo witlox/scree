@@ -127,5 +127,6 @@ recommendation on what blocks the next phase.
 - File one **`type:bug`** issue per finding using the Bug form (severity /
   category / location / spec-ref / evidence / resolution). Add `phase:adversary`
   and `context:*`.
-- `severity:critical` and `severity:high` findings also get **`gate:blocking`**
-  — they block the relevant milestone until resolved.
+- **Project policy: ALL findings are fixed before phase graduation — not just
+  critical/high.** Severity sets *priority and order*, never whether a finding
+  gets resolved. `severity:critical`/`high` additionally carry **`gate:blocking`**.

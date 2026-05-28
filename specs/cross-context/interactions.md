@@ -56,6 +56,10 @@ arrow that crosses a trust boundary passes through it.
 - **Dual write:** the Gateway commits to Git first; index update is a *derived*
   follow-on. If the index update fails, Git is still correct and the next batch
   reconciles — there is no "commit succeeded but lost" state.
+- **Concurrent writes:** the Gateway performs per-resource writes as
+  read-modify-write with optimistic concurrency; on a non-fast-forward it retries
+  against the latest, and irreconcilable structured-field conflicts are surfaced,
+  not silently merged (INV-ST-6, FM-15).
 - **Identity continuity:** the human identity must survive every hop
   (surface → Gateway → token exchange → GitLab) so the GitLab audit log attributes
   the real actor (INV-ID-1).

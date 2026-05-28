@@ -31,3 +31,17 @@ Feature: Slack capture (DD-012, DD-013, INV-ID-2)
     Given "U_OKAFOR" cannot see ticket "ticket-2026-000999"
     When "U_OKAFOR" runs "/link-ticket" autocomplete
     Then "ticket-2026-000999" is not offered
+
+  Scenario: Capturing another member's message sets them as requester, records the capturer
+    Given a message in "C-COMMUNITY" authored by "U_OKAFOR"
+    And Slack user "U_AGENT" maps to Keycloak "agent:dani"
+    When "U_AGENT" adds the ":ticket:" reaction to that message
+    Then a draft ticket is created with requester "ext:r.okafor@uni.example.ac"
+    And "agent:dani" is recorded as the capturer
+    And the ticket is requester-private
+
+  Scenario: Capture is rate-limited per Slack user
+    Given "U_OKAFOR" has created 5 captures in the last minute
+    When "U_OKAFOR" adds another ":ticket:" reaction
+    Then the capture is rate-limited and not created
+    And the bot explains the limit

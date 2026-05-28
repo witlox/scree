@@ -22,6 +22,7 @@ wrong — the architect must validate these early.
 | **A-12** | ReBAC relations stay bounded (requester/watcher/assignee/owner). | New relation types proliferate. | A full ReBAC engine becomes necessary vs a custom table (OQ-X-001). |
 | **A-13** | Critical = security/compliance category is a disciplined, stable trigger definition. | Categories get gamed or critical-ness needs nuance. | Webhook trigger redefinition (OQ-A-013 → OQ-HE-001). |
 | **A-14** | Internal users are GitLab users; external customers are not — and this split is clean. | A class of users straddles both. | Principal model and permission composition revisited (OQ-A-004). |
+| **A-15** | Client-side key distribution to authorized staff (git-crypt/age/SOPS-style) is operable, and rotation-based revocation is acceptable for internal sensitive content. | Key ops prove too burdensome, or revocation gaps are unacceptable. | Encryption model for internal content (ADR-0005) revisited. |
 
 ---
 

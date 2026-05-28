@@ -21,3 +21,14 @@ Feature: Orphan detection (INV-ORPH-1, OQ-A-005)
     And "rivera" still has access to "platform/handbook"
     When the hourly batch runs
     Then "risk-2026-044" does not appear in the "orphaned actives" report
+
+  Scenario: An open ticket whose assignee left the desk is flagged for triage
+    Given ticket "ticket-2026-000123" is "open" with assignee "agent:dani"
+    And "agent:dani" has lost desk access
+    When the hourly batch runs
+    Then "ticket-2026-000123" appears in the orphaned-actives report for desk leads
+
+  Scenario: A long-unassigned open ticket is flagged
+    Given ticket "ticket-2026-000200" is "open" and unassigned for longer than the threshold
+    When the hourly batch runs
+    Then "ticket-2026-000200" appears in the orphaned-actives report for desk leads

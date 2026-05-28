@@ -186,6 +186,10 @@ These are flagged for the architect but not resolved by the analyst.
 
 *Owner*: Architect.
 
+**OQ-X-009**: Choose encryption tooling/topology (from ADR-0005): git-crypt vs age vs SOPS for client-key content; Vault transit vs envelope encryption for Gateway-mediated content; key rotation and recipient management.
+
+*Owner*: Architect.
+
 ---
 
 ## Head of Engineering ratification

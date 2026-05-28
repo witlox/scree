@@ -12,8 +12,8 @@ MR-required (INV-LC-3, DD-009). Scoring is **5×5**; strategy is **ROAM**.
 | `category` | enum `delivery\|security\|compliance\|operational\|strategic` | yes | **Drives the near-real-time webhook**: `security` or `compliance` ⇒ critical (INV-IX-1). |
 | `likelihood` | int 1–5 | yes | 1 = rare … 5 = almost certain. |
 | `impact` | int 1–5 | yes | 1 = negligible … 5 = severe. |
-| `score` | int 1–25 | yes | `likelihood × impact` (validated for consistency). |
-| `severity` | enum `low\|medium\|high\|critical` | yes | **Score band** for prioritization (e.g. 1–4 low, 5–9 medium, 10–15 high, 16–25 critical). Distinct from the webhook trigger — see note. |
+| `score` | int 1–25 | **derived** | Computed as `likelihood × impact`; not author-set — a mismatch is a validation error (F-12). |
+| `severity` | enum `low\|medium\|high\|critical` | **derived** | **Score band (normative):** 1–4 `low`, 5–9 `medium`, 10–15 `high`, 16–25 `critical`. Computed from `score`, not author-set (F-13). Distinct from the webhook trigger — see note. |
 | `strategy` | enum `resolve\|owned\|accepted\|mitigated` | yes | ROAM. |
 | `review_by` | date | yes | Next review date; overdue reviews are surfaced. |
 | `affects` | object `{portfolios?, teams?, projects?}` | no | Scope of impact. |

@@ -53,6 +53,11 @@ The Gateway calls GitLab on behalf of the authenticated human via OIDC token
 exchange (RFC 8693), so GitLab's audit log records the **real human**, not the
 Gateway. Every Gateway action is audited: principal, resource, action, result.
 
+External customers are **not** GitLab users, so token exchange does not apply to
+them (INV-ID-1 is scoped to GitLab-user principals). Their writes are committed by
+the desk service account with the external identity in the commit trailer and the
+application audit (INV-ID-4, F-03).
+
 ## 6. The aggregation permission invariant (DD-008) — LOAD-BEARING
 
 > **INV-AGG.** For any principal `P`, any aggregation/search/portfolio/risk-register
@@ -91,9 +96,27 @@ tickets" path. Sharing is per-user, by the requester adding a watcher.
 - A stale cache must fail **closed** for INV-AGG purposes: when in doubt, omit
   the item rather than risk exposing it.
 
+## 9. Encryption at rest (ADR-0005)
+
+Sensitive content is encrypted at rest (INV-ENC-*), with two key models by
+audience:
+
+- **Internal sensitive content** (designated sensitive doc/risk spaces) →
+  **client-side recipient keys**: authorized staff decrypt locally and read/grep
+  **offline**; the Gateway is not in the read path (INV-ACC-1 exception). This is
+  how page/space-level permissions independent of GitLab repo membership are
+  delivered (F-07).
+- **External-customer private ticket bodies** → **Gateway-mediated keys** (Vault):
+  customers never hold keys and reach content only online via the Gateway/portal
+  (F-01).
+
+Trade-offs: encrypted content forgoes textual merge and, for client-key content,
+Gateway-audited reads; the index holds plaintext for indexed sensitive content and
+is access-controlled (INV-ENC-3). Tooling is OQ-X-009.
+
 ## Open questions referenced
 
 OQ-A-011 (permission-cache implementation — architect), OQ-A-016 (Slack↔Keycloak
-mapping mechanism), OQ-HE-008 (compliance/audit as consumers of audit/risk data).
-The reference-leak concern is resolved by INV-REF-3 (an unreadable referent never
-exposes its content via the referencing resource).
+mapping mechanism), OQ-X-009 (encryption tooling), OQ-HE-008 (compliance/audit as
+consumers of audit/risk data). The reference-leak concern is handled by INV-REF-3
+and F-14 (cross-boundary reference ids opaque to unauthorized viewers).
