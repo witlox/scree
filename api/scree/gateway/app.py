@@ -7,9 +7,18 @@ from scree.access.audit import AuditSink
 from scree.access.authority import Authority
 from scree.access.oidc import AuthError, OidcAuthenticator
 from scree.access.ticket_authority import TicketAuthority
-from scree.knowledge.doc_service import Conflict, DocService, DuplicateId, MRRequired, WrongKind
+from scree.knowledge.doc_service import (
+    Conflict,
+    DocService,
+    DuplicateId,
+    InvalidPath,
+    MRRequired,
+    SpaceMismatch,
+    WrongKind,
+)
 from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
+from scree.knowledge.git_store import GitWriteError
 from scree.knowledge.store import DocStore
 from scree.risk.models import Risk
 from scree.risk.store import RiskStore
@@ -22,11 +31,14 @@ from scree.servicedesk.store import TicketStore
 _ERROR_STATUS: dict[type[Exception], int] = {
     InvalidFrontmatter: 422,
     WrongKind: 422,
+    InvalidPath: 422,
     DocForbidden: 403,
+    SpaceMismatch: 403,
     Forbidden: 403,
     MRRequired: 409,
     DuplicateId: 409,
     Conflict: 409,
+    GitWriteError: 409,
     IllegalTransition: 409,
     NotPromotable: 409,
     TicketNotFound: 404,

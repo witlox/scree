@@ -1,9 +1,14 @@
 import subprocess
+import threading
 from pathlib import Path
 from collections.abc import Iterator
 
 from .frontmatter import InvalidFrontmatter, parse
 from .models import Doc
+
+
+class GitWriteError(RuntimeError):
+    """A Git write failed (e.g. index.lock contention) — retryable (G2-11)."""
 
 
 class GitBackedDocStore:
@@ -13,6 +18,9 @@ class GitBackedDocStore:
 
     def __init__(self, root: Path | str) -> None:
         self._root = Path(root)
+        # G2-11: serialize writes to this repo so concurrent commits don't race
+        # on Git's index.lock. (Single-process spike; multi-process needs a file lock.)
+        self._write_lock = threading.Lock()
 
     def _iter_docs(self) -> Iterator[Doc]:
         for md_path in sorted(self._root.rglob("*.md")):
@@ -32,21 +40,30 @@ class GitBackedDocStore:
             )
 
     def write(self, rel_path: str, text: str, *, author: str, message: str) -> None:
-        """Write a doc file and commit it (INV-ST-1: every mutation is a commit)."""
-        target = self._root / rel_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text)
-        subprocess.run(["git", "-C", str(self._root), "add", rel_path], check=True, capture_output=True)
-        # Skip the commit if the content is unchanged (no-op save must not crash).
-        if subprocess.run(
-            ["git", "-C", str(self._root), "diff", "--cached", "--quiet", "--", rel_path]
-        ).returncode == 0:
-            return
-        subprocess.run(
-            ["git", "-C", str(self._root), "-c", f"user.name={author}",
-             "-c", f"user.email={author}@scree", "commit", "-m", message],
-            check=True, capture_output=True,
-        )
+        """Write a doc file and commit it (INV-ST-1: every mutation is a commit).
+        Serialized per repo (G2-11). Callers must pass a confined relative path
+        (DocService.is_safe_relpath); this is a safety net, not the boundary."""
+        with self._write_lock:
+            try:
+                target = self._root / rel_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(text)
+                subprocess.run(
+                    ["git", "-C", str(self._root), "add", "--", rel_path],
+                    check=True, capture_output=True,
+                )
+                # Skip the commit if content is unchanged (no-op save must not crash).
+                if subprocess.run(
+                    ["git", "-C", str(self._root), "diff", "--cached", "--quiet", "--", rel_path]
+                ).returncode == 0:
+                    return
+                subprocess.run(
+                    ["git", "-C", str(self._root), "-c", f"user.name={author}",
+                     "-c", f"user.email={author}@scree", "commit", "-m", message],
+                    check=True, capture_output=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                raise GitWriteError(exc.stderr.decode(errors="replace") if exc.stderr else str(exc)) from exc
 
     def rev(self, rel_path: str) -> str | None:
         """Current revision (last commit sha) for a path, or None if untracked.
