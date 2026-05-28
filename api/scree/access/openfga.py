@@ -26,6 +26,8 @@ class TicketRelations(Protocol):
 
     def write(self, user: str, relation: str, ticket_id: str) -> None: ...
 
+    def purge_user(self, user: str) -> int: ...  # GDPR erasure: drop all tuples for a user (AR-05)
+
 
 class FakeOpenFga:
     """Faithful in-memory stand-in for OpenFGA's `viewer` relation, used by the
@@ -51,6 +53,13 @@ class FakeOpenFga:
             u == user and r in self.VIEWER_RELATIONS and t == ticket_id
             for (u, r, t) in self._tuples
         )
+
+    def purge_user(self, user: str) -> int:
+        # AR-05: erasure must remove the subject's relation tuples, not just the
+        # identity record, or the (now-orphaned) relations linger.
+        doomed = {t for t in self._tuples if t[0] == user}
+        self._tuples -= doomed
+        return len(doomed)
 
 
 class RealOpenFga:
@@ -104,3 +113,24 @@ class RealOpenFga:
             },
         )
         resp.raise_for_status()
+
+    def purge_user(self, user: str) -> int:
+        # AR-05: read the subject's stored tuples, then delete them. (Deletes need
+        # the exact (user, relation, object), not the derived `viewer` relation.)
+        # OpenFGA Read requires an object filter, so scope by the `ticket:` type.
+        read = self._client.post(
+            f"{self._base}/stores/{self._store}/read",
+            json={"tuple_key": {"object": "ticket:", "user": fga_user(user)}},
+        )
+        read.raise_for_status()
+        keys = [t["key"] for t in read.json().get("tuples", [])]
+        if not keys:
+            return 0
+        delete = self._client.post(
+            f"{self._base}/stores/{self._store}/write",
+            json={"deletes": {"tuple_keys": [
+                {"user": k["user"], "relation": k["relation"], "object": k["object"]} for k in keys
+            ]}},
+        )
+        delete.raise_for_status()
+        return len(keys)

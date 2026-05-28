@@ -48,3 +48,7 @@ class TicketAuthority:
     def grant(self, user: str, relation: str, ticket_id: str) -> None:
         # I-01: on ticket create, grant the requester their viewer relation.
         self._relations.write(user, relation, ticket_id)
+
+    def purge_relations(self, user: str) -> int:
+        # GDPR erasure (AR-05): drop all of the subject's relation tuples.
+        return self._relations.purge_user(user)
