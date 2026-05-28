@@ -105,3 +105,19 @@ Adversarial pass over the planning slice (PR #54). Primary target: INV-AGG.
 | G3-03 | Low | Robustness/degradation | Partial config silently 404s; never-indexed staleness served as bare null | ✅ #55 (fail-loud partial config; never_indexed signal) |
 
 **Counts:** 1 medium · 2 low — **3 total, all resolved.** No `gate:blocking` (no critical/high).
+
+## Implementation Gate 4 (2026-05-28) — `impl-gate-4.md`
+
+Adversarial pass over the inbound email ingestion slice (PR #56). Primary target: email pipeline + INV-EMAIL-1/INV-DP-1.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G4-01 | **High** | Security/trust-boundary | Attacker-supplied Authentication-Results trusted → INV-EMAIL-1 bypass | ✅ #57 (verdict out-of-band from trusted poller; raw A-R no longer consulted) |
+| G4-02 | Medium | Security/authz | New-ticket path needs no verification → spoofable requester attribution | ✅ #57 (unverified → quarantine; never attributed) |
+| G4-03 | Medium | Privacy/data-protection | Requester id minted from raw email address → PII in Git/OpenFGA (INV-DP-1) | ✅ #57 (IdentityDirectory opaque id; email out of Git) |
+| G4-04 | Medium | Correctness | Generated email_token (hex) vs matcher (`\d+`) → token threading dead for real tickets | ✅ #57 (numeric SCREE-NNN token) |
+| G4-05 | Medium | Robustness/degradation | Quarantine not persisted — "agent review" unimplemented | ✅ #57 (QuarantineStore + agent review endpoint) |
+| G4-06 | Medium | Robustness/exhaustion | No size bound on inbound raw email | ✅ #57 (1MB cap → 413) |
+| G4-07 | Low | Robustness/performance | O(n) ticket scan per inbound email | ✅ #57 (store-indexed by message-id/token) |
+
+**Counts:** 1 high · 5 medium · 1 low — **7 total, all resolved.** G4-01 was `gate:blocking`.

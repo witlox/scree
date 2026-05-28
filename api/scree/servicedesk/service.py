@@ -1,13 +1,15 @@
 import uuid
 from dataclasses import replace
 
+from scree.access.identity import IdentityDirectory
 from scree.access.ticket_authority import TicketAuthority
 from scree.integration.o365.inbound import InboundEmail
 
 from .comments import CommentStore, TicketComment
-from .email_routing import requester_of, route_inbound
+from .email_routing import extract_token, route
 from .lifecycle import transition
 from .models import Origin, Ticket, TicketStatus
+from .quarantine import QuarantinedEmail, QuarantineStore
 from .store import TicketStore
 
 
@@ -32,10 +34,16 @@ class TicketService:
         store: TicketStore,
         authority: TicketAuthority,
         comment_store: CommentStore | None = None,
+        *,
+        identity: IdentityDirectory | None = None,
+        quarantine: QuarantineStore | None = None,
     ) -> None:
         self._store = store
         self._authority = authority
         self._comments = comment_store
+        self._identity = identity
+        self._quarantine = quarantine
+        self._email_seq = 0  # G4-04: numeric SCREE-NNN sequence (spike; per-instance)
 
     def create(
         self,
@@ -50,16 +58,19 @@ class TicketService:
         from public Slack threads (DD-013)."""
         # DD-013: tickets default requester-private regardless of origin (even a
         # public Slack thread); promotion to community-visible is explicit.
-        tid = f"ticket-{uuid.uuid4().hex[:8]}"
+        token = None
+        if origin == "email":
+            # G4-04: numeric token so the [SCREE-NNN] matcher (\d+) actually matches.
+            self._email_seq += 1
+            token = f"SCREE-{self._email_seq}"
         ticket = Ticket(
-            id=tid,
+            id=f"ticket-{uuid.uuid4().hex[:8]}",
             requester=requester,
             space=space,
             status="open",
             origin=origin,
             community_visible=False,
-            # email_token lets later replies thread when headers are stripped.
-            email_token=f"SCREE-{tid.split('-')[1]}" if origin == "email" else None,
+            email_token=token,  # lets later replies thread when RFC headers are stripped
             email_message_id=email_message_id,
         )
         self._store.put(ticket)
@@ -67,21 +78,43 @@ class TicketService:
         self._authority.grant(requester, "requester", ticket.id)
         return ticket
 
-    def ingest_email(self, email: InboundEmail) -> dict:
-        """Normalize an inbound email to the ticket model (multi-origin), threading
-        on headers/token but enforcing INV-EMAIL-1: append only for a verified
-        sender matching the requester, else quarantine; no match → a new ticket."""
-        route = route_inbound(email, self._store.all())
-        if route.action == "quarantine":
-            # Held for agent review, not attributed (INV-EMAIL-1). A valid outcome,
-            # not an error: the mail is accepted but not threaded.
-            return {"action": "quarantine", "ticket": route.ticket_id, "reason": route.reason}
-        if route.action == "append":
-            self._append(route.ticket_id, requester_of(email), email)
-            return {"action": "append", "ticket": route.ticket_id}
-        ticket = self.create("email", requester_of(email), email_message_id=email.message_id)
-        self._append(ticket.id, requester_of(email), email)
+    def _candidate(self, email: InboundEmail) -> Ticket | None:
+        # G4-07: O(1) threading lookup via store indexes (headers, then token).
+        for ref in [email.in_reply_to, *email.references]:
+            if ref:
+                t = self._store.by_message_id(ref)
+                if t is not None:
+                    return t
+        token = extract_token(email.subject)
+        if token:
+            return self._store.by_token(token)
+        return None
+
+    def ingest_email(self, email: InboundEmail, *, verified: bool, sender: str | None) -> dict:
+        """Normalize an inbound email to the ticket model. `verified`/`sender` are
+        the TRUSTED out-of-band verdict + aligned sender from the poller (G4-01),
+        NOT anything in the raw message. INV-EMAIL-1: nothing is attributed or
+        threaded unless verified (G4-02); the sender resolves to an OPAQUE id via
+        the identity directory so no PII enters Git (G4-03)."""
+        candidate = self._candidate(email)
+        requester = self._identity.resolve(sender) if (verified and sender and self._identity) else None
+        decision = route(candidate, verified=verified, requester=requester)
+        if decision.action == "quarantine":
+            self._hold(email, decision)  # G4-05: persist for agent review
+            return {"action": "quarantine", "ticket": decision.ticket_id, "reason": decision.reason}
+        if decision.action == "append":
+            self._append(decision.ticket_id, requester, email)
+            return {"action": "append", "ticket": decision.ticket_id}
+        ticket = self.create("email", requester, email_message_id=email.message_id)
+        self._append(ticket.id, requester, email)
         return {"action": "new", "ticket": ticket.id}
+
+    def _hold(self, email: InboundEmail, decision) -> None:
+        if self._quarantine is not None:
+            self._quarantine.add(QuarantinedEmail(
+                claimed_from=email.from_addr, subject=email.subject, body=email.body,
+                reason=decision.reason or "quarantined", candidate_ticket=decision.ticket_id,
+            ))
 
     def _append(self, ticket_id: str, author: str, email: InboundEmail) -> None:
         if self._comments is not None:

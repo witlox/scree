@@ -2,8 +2,6 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from scree.integration.o365.inbound import InboundEmail
-
 from .models import Ticket
 
 _TOKEN = re.compile(r"\[(SCREE-\d+)\]")
@@ -24,39 +22,19 @@ def extract_token(subject: str) -> str | None:
     return m.group(1) if m else None
 
 
-def requester_of(email: InboundEmail) -> str:
-    """The opaque external requester id derived from the verified sender
-    (INV-DP-1: the real id resolves via the identity directory, out of Git)."""
-    return f"ext:{email.from_addr}"
-
-
-def _candidate(email: InboundEmail, tickets: list[Ticket]) -> Ticket | None:
-    # 1. RFC threading headers (Message-ID in References/In-Reply-To).
-    refs = set(email.references)
-    if email.in_reply_to:
-        refs.add(email.in_reply_to)
-    for t in tickets:
-        if t.email_message_id and t.email_message_id in refs:
-            return t
-    # 2. Fallback: the [SCREE-NNN] subject token.
-    token = extract_token(email.subject)
-    if token:
-        for t in tickets:
-            if t.email_token == token:
-                return t
-    return None
-
-
-def route_inbound(email: InboundEmail, tickets: list[Ticket]) -> EmailRoute:
-    """Decide where an inbound email goes. Threading headers and the token are
-    candidates, NOT authority (INV-EMAIL-1): a matched ticket is only appended to
-    when the sender is verified AND matches the ticket's requester; otherwise the
-    mail is quarantined for agent review — never silently appended or attributed."""
-    candidate = _candidate(email, tickets)
+def route(candidate: Ticket | None, *, verified: bool, requester: str | None) -> EmailRoute:
+    """Decide where an inbound email goes, given an already-resolved threading
+    `candidate` and the TRUSTED (out-of-band) verification verdict + opaque
+    `requester`. INV-EMAIL-1: nothing is attributed or threaded unless the sender
+    is verified; a matched ticket is appended to only when the verified requester
+    matches the ticket's requester — otherwise quarantine. No verified sender at
+    all (incl. first contact) → quarantine for agent review, never a silent
+    attributed ticket (G4-02)."""
+    if not verified:
+        return EmailRoute("quarantine", candidate.id if candidate else None,
+                          "sender not DKIM/DMARC verified")
     if candidate is None:
         return EmailRoute("new")
-    if not email.verified:
-        return EmailRoute("quarantine", candidate.id, "sender not DKIM/DMARC verified")
-    if requester_of(email) != candidate.requester:
+    if requester != candidate.requester:
         return EmailRoute("quarantine", candidate.id, "verified sender does not match requester")
     return EmailRoute("append", candidate.id)
