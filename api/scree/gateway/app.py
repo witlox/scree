@@ -21,6 +21,9 @@ from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.git_store import GitWriteError
 from scree.knowledge.store import DocStore
+from scree.planning.authority import PlanningAuthority
+from scree.planning.index import PlanningIndex
+from scree.planning.rollup import portfolio
 from scree.risk.models import Risk, RiskCategory, Strategy
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
@@ -84,6 +87,8 @@ def create_app(
     doc_writer: DocService | None = None,
     authenticator: OidcAuthenticator | None = None,
     risk_store: RiskStore | None = None,
+    planning_index: PlanningIndex | None = None,
+    planning_authority: PlanningAuthority | None = None,
     audit: AuditSink | None = None,
     allow_insecure_header_auth: bool = False,
 ) -> FastAPI:
@@ -173,6 +178,19 @@ def create_app(
         def list_risks(principal: str = Depends(get_principal)) -> list[dict]:
             readable = authority.readable_spaces(principal)  # INV-AGG over risks
             return [_risk_view(r) for r in risk_store.all() if r.space in readable]
+
+    if planning_index is not None and planning_authority is not None:
+
+        @app.get("/planning/portfolio")
+        def portfolio_rollup(principal: str = Depends(get_principal)) -> dict:
+            # AR-08: resolve the readable groups ONCE, then filter every candidate.
+            readable = planning_authority.readable_groups(principal)
+            # INV-AGG: drop epics the viewer can't see entirely — no count/title/
+            # capacity leak (indexer-design step 4); totals derive from visible only.
+            visible = [e for e in planning_index.candidates() if e.group in readable]
+            result = portfolio(visible)
+            result["as_of"] = planning_index.as_of()  # staleness marker (INV-IX-2)
+            return result
 
     @app.get("/docs")
     def list_docs(principal: str = Depends(get_principal)) -> list[dict]:
