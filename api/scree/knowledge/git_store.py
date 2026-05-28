@@ -15,12 +15,12 @@ class GitBackedDocStore:
         self._root = Path(root)
 
     def _iter_docs(self) -> Iterator[Doc]:
-        for path in sorted(self._root.rglob("*.md")):
+        for md_path in sorted(self._root.rglob("*.md")):
             try:
-                meta = parse(path.read_text())
+                meta = parse(md_path.read_text())
             except InvalidFrontmatter:
                 continue  # quarantine invalid files; never index them
-            created, updated = self._git_times(path)
+            created, updated = self._git_times(md_path)
             yield Doc(
                 id=meta["id"],
                 title=meta["title"],
@@ -28,6 +28,7 @@ class GitBackedDocStore:
                 body=meta["body"],
                 created=created,
                 updated=updated,
+                path=str(md_path.relative_to(self._root)),  # folder path = hierarchy
             )
 
     def get(self, doc_id: str) -> Doc | None:
@@ -35,6 +36,19 @@ class GitBackedDocStore:
 
     def all(self) -> list[Doc]:
         return list(self._iter_docs())
+
+    def attachments(self, doc_id: str) -> list[str]:
+        """Per-folder uploads: files colocated with the doc in its folder
+        (DD-002: internal attachments live in the doc's folder in Git)."""
+        doc = self.get(doc_id)
+        if doc is None or doc.path is None:
+            return []
+        folder = (self._root / doc.path).parent
+        return sorted(
+            str(p.relative_to(self._root))
+            for p in folder.iterdir()
+            if p.is_file() and p.suffix != ".md"  # uploads only, not docs
+        )
 
     def _git_times(self, path: Path) -> tuple[str | None, str | None]:
         try:
