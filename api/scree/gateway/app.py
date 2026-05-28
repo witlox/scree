@@ -106,6 +106,16 @@ def create_app(
 
         service = TicketService(ticket_store, ticket_authority)
 
+        @app.post("/tickets")
+        def create_ticket(
+            origin: str = Body(..., embed=True),
+            requester: str = Body(..., embed=True),
+            x_spike_user: str = Header(...),
+        ) -> dict:
+            t = service.create(origin, requester)
+            return {"id": t.id, "requester": t.requester, "origin": t.origin,
+                    "status": t.status, "community_visible": t.community_visible}
+
         @app.patch("/tickets/{ticket_id}")
         def transition_ticket(
             ticket_id: str,
