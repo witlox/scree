@@ -138,3 +138,25 @@ def test_real_purge_user_erases_subject_tuples(openfga_url):
     assert fga.purge_user("okafor") == 2
     assert fga.list_readable("okafor") == set()
     assert fga.list_readable("lind") == {"3"}  # other subjects untouched
+
+
+def test_real_purge_user_paginates_and_batches(openfga_url):
+    # G5-01 on the REAL engine: a subject with more tuples than one Read page /
+    # one delete batch is fully purged (pagination + batching), not partially.
+    n = 120
+    with httpx.Client(base_url=openfga_url, timeout=30) as cli:
+        store_id = cli.post("/stores", json={"name": "scree-pages"}).json()["id"]
+        model_id = cli.post(
+            f"/stores/{store_id}/authorization-models", json=MODEL
+        ).json()["authorization_model_id"]
+        rows = [{"user": "user:heavy", "relation": "requester", "object": f"ticket:{i}"} for i in range(n)]
+        for start in range(0, n, 100):  # OpenFGA write cap is 100/call
+            cli.post(
+                f"/stores/{store_id}/write",
+                json={"authorization_model_id": model_id, "writes": {"tuple_keys": rows[start:start + 100]}},
+            ).raise_for_status()
+
+    fga = RealOpenFga(openfga_url, store_id, model_id)
+    assert len(fga.list_readable("heavy")) == n
+    assert fga.purge_user("heavy") == n  # follows pagination + batches the deletes
+    assert fga.list_readable("heavy") == set()

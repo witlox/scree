@@ -121,3 +121,15 @@ Adversarial pass over the inbound email ingestion slice (PR #56). Primary target
 | G4-07 | Low | Robustness/performance | O(n) ticket scan per inbound email | ✅ #57 (store-indexed by message-id/token) |
 
 **Counts:** 1 high · 5 medium · 1 low — **7 total, all resolved.** G4-01 was `gate:blocking`.
+
+## Implementation Gate 5 (2026-05-28) — `impl-gate-5.md`
+
+Adversarial pass over the GDPR erasure slice (PR #58). Primary target: erasure completeness (INV-DP-2/AR-05).
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G5-01 | Medium | Security/data-protection | `RealOpenFga.purge_user` incomplete: no Read pagination, no delete batching, ticket-type only | ✅ #59 (paginate Read + batch deletes ≤100; @contract 120-tuple test; type scope documented) |
+| G5-02 | Medium | Privacy/data-protection | Erasure doesn't scrub the quarantine queue (retains email + body); mapping deleted before scrub possible | ✅ #59 (email resolved before deletion; QuarantineStore.purge_sender) |
+| G5-03 | Low | Robustness/compliance | No durable erasure receipt; residual (Git/comment) scope not disclosed | ✅ #59 (ErasureReceiptStore + GET /identities/erasures; residual in response) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking` (no critical/high).
