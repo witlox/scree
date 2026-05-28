@@ -1,0 +1,4 @@
+# Frontend toolchain (the api/ Python side is managed by uv).
+[tools]
+node = "22"
+pnpm = "11"
