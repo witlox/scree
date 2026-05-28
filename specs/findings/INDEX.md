@@ -170,3 +170,15 @@ Adversarial pass over the encryption-at-create / crypto-shred slice (PR #64). Pr
 | G8-03 | Low | Robustness/exhaustion | Comment/ticket body size unbounded | ✅ #65 (1MB cap → 413 on body/snapshot) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
+
+## Implementation Gate 9 (2026-05-28) — `impl-gate-9.md`
+
+Adversarial pass over the token-exchange + composed-authority slice (PR #66). Primary target: per-request resolution path.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G9-01 | Medium | Robustness/performance | Token-exchange + membership resolved every request, no cross-request cache (AR-08) | ✅ #67 (TtlCache for exchanged token + readable sets) |
+| G9-02 | Medium | Robustness/fail-loud | Partial composed-authority config silently yields empty authority | ✅ #67 (gitlab_authority requires a token source) |
+| G9-03 | Low | Correctness | readable_spaces counts only membership (under-grant for public Spaces) | ✅ #67 (accepted: member-access Space model, documented) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
