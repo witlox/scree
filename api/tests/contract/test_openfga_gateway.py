@@ -99,7 +99,7 @@ def _client(fga) -> TestClient:
          Ticket(id="ticket-3", requester="cust-lind")]
     )
     authority = TicketAuthority(RealOpenFga(base, store_id, model_id), agents={"agent:dani"})
-    app = create_app(DocStore([]), Authority({}), ticket_store=tickets, ticket_authority=authority)
+    app = create_app(DocStore([]), Authority({}), ticket_store=tickets, ticket_authority=authority, allow_insecure_header_auth=True)
     return TestClient(app)
 
 

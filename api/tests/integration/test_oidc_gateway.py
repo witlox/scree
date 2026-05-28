@@ -31,10 +31,10 @@ def keypair():
     return priv_pem, pub_pem
 
 
-def _token(priv_pem, username):
+def _token(priv_pem, sub):
     now = dt.datetime.now(dt.timezone.utc)
     return jwt.encode(
-        {"iss": ISSUER, "aud": AUD, "sub": "u", "preferred_username": username,
+        {"iss": ISSUER, "aud": AUD, "sub": sub, "preferred_username": "display-name",
          "iat": now, "exp": now + dt.timedelta(minutes=5)},
         priv_pem, algorithm="RS256",
     )
@@ -44,12 +44,13 @@ def _token(priv_pem, username):
 def client(keypair):
     auth = OidcAuthenticator(issuer=ISSUER, audience=AUD, public_key=keypair[1])
     store = DocStore([Doc(id="doc-a", title="A", space="platform/handbook", body="b")])
-    authority = Authority({"rivera": {"platform/handbook"}})
+    # G2-05: authority is keyed on the immutable `sub`.
+    authority = Authority({"user-sub-1": {"platform/handbook"}})
     return TestClient(create_app(store, authority, authenticator=auth))
 
 
 def test_valid_bearer_token_authenticates_and_authorizes(client, keypair):
-    token = _token(keypair[0], "rivera")
+    token = _token(keypair[0], "user-sub-1")
     resp = client.get("/docs", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert {d["id"] for d in resp.json()} == {"doc-a"}

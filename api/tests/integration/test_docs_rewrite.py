@@ -22,7 +22,7 @@ Same content.
 def _client(repo):
     store = GitBackedDocStore(repo)
     authority = Authority({"writer": {"platform/handbook"}})
-    return TestClient(create_app(store, authority, doc_writer=DocService(store, authority)))
+    return TestClient(create_app(store, authority, doc_writer=DocService(store, authority), allow_insecure_header_auth=True))
 
 
 def test_rewriting_identical_content_is_a_noop(repo):

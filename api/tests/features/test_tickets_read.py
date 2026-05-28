@@ -28,6 +28,7 @@ def client(world) -> TestClient:
         Authority({}),
         ticket_store=TicketStore(world["tickets"]),
         ticket_authority=TicketAuthority(world["fga"], world["agents"]),
+        allow_insecure_header_auth=True,
     )
     return TestClient(app)
 

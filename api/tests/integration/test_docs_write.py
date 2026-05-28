@@ -24,7 +24,7 @@ def _client(repo):
     store = GitBackedDocStore(repo)
     authority = Authority({"writer": {"platform/handbook"}})
     service = DocService(store, authority, governed_prefixes={"policy/"})
-    return TestClient(create_app(store, authority, doc_writer=service))
+    return TestClient(create_app(store, authority, doc_writer=service, allow_insecure_header_auth=True))
 
 
 def _post(client, path, content, user="writer", base_rev=None):

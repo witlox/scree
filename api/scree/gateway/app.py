@@ -61,11 +61,20 @@ def create_app(
     authenticator: OidcAuthenticator | None = None,
     risk_store: RiskStore | None = None,
     audit: AuditSink | None = None,
+    allow_insecure_header_auth: bool = False,
 ) -> FastAPI:
     """The single enforcement point. Identity comes from a verified OIDC bearer
-    token (INV-ID-1) when an authenticator is configured; otherwise it falls back
-    to the X-Spike-User header (spike/dev only). Domain exceptions map to HTTP via
-    central handlers; every action is audited (INV-ID-3)."""
+    token (INV-ID-1). Domain exceptions map to HTTP via central handlers; every
+    action is audited (INV-ID-3).
+
+    G2-03: fail closed. Without an authenticator the app refuses to start unless
+    `allow_insecure_header_auth=True` is passed explicitly (spike/dev only), which
+    enables the unauthenticated X-Spike-User header path."""
+    if authenticator is None and not allow_insecure_header_auth:
+        raise ValueError(
+            "create_app requires an authenticator; pass allow_insecure_header_auth=True "
+            "only for dev/spike (trusts the X-Spike-User header)."
+        )
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -75,12 +84,17 @@ def create_app(
     if audit is not None:
         @app.middleware("http")
         async def audit_mw(request: Request, call_next):
-            response = await call_next(request)
-            audit.record(
-                getattr(request.state, "principal", None),
-                request.method, request.url.path, response.status_code,
-            )
-            return response
+            # G2-08: record in finally so 5xx (unhandled exceptions) are audited too.
+            status_code = 500
+            try:
+                response = await call_next(request)
+                status_code = response.status_code
+                return response
+            finally:
+                audit.record(
+                    getattr(request.state, "principal", None),
+                    request.method, request.url.path, status_code,
+                )
 
     def get_principal(
         request: Request,
@@ -94,8 +108,8 @@ def create_app(
                 principal = authenticator.principal(authorization.split(" ", 1)[1])
             except AuthError:
                 raise HTTPException(status_code=401, detail="invalid token")
-        elif x_spike_user:
-            principal = x_spike_user  # spike/dev fallback when no authenticator
+        elif allow_insecure_header_auth and x_spike_user:
+            principal = x_spike_user  # spike/dev only (gated by allow_insecure_header_auth)
         else:
             raise HTTPException(status_code=401, detail="no identity")
         request.state.principal = principal  # I-08: record for the audit sink
@@ -106,6 +120,7 @@ def create_app(
         category: str = Body(..., embed=True),
         likelihood: int = Body(..., embed=True),
         impact: int = Body(..., embed=True),
+        principal: str = Depends(get_principal),  # G2-10: authenticated like every action
     ) -> dict:
         risk = Risk(id="(preview)", title="", space="", category=category,
                     likelihood=likelihood, impact=impact, strategy="mitigated")
@@ -185,10 +200,15 @@ def create_app(
         @app.post("/tickets")
         def create_ticket(
             origin: str = Body(..., embed=True),
-            requester: str = Body(..., embed=True),
+            requester: str | None = Body(default=None, embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
-            t = service.create(origin, requester)
+            # G2-02: bind the requester to the authenticated principal. Only an
+            # agent may open a ticket on behalf of another requester.
+            if requester and requester != principal and not ticket_authority.is_agent(principal):
+                raise HTTPException(status_code=403, detail="cannot create ticket for another requester")
+            effective_requester = requester if (requester and ticket_authority.is_agent(principal)) else principal
+            t = service.create(origin, effective_requester)
             return {"id": t.id, "requester": t.requester, "origin": t.origin,
                     "status": t.status, "community_visible": t.community_visible}
 

@@ -20,7 +20,7 @@ def world() -> dict:
 
 @pytest.fixture
 def client(world) -> TestClient:
-    return TestClient(create_app(DocStore(world["docs"]), Authority(world["readable"])))
+    return TestClient(create_app(DocStore(world["docs"]), Authority(world["readable"]), allow_insecure_header_auth=True))
 
 
 @given(parsers.parse('doc "{doc_id}" in space "{space}"'))

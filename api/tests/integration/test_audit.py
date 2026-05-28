@@ -14,7 +14,7 @@ def _client():
     sink = AuditSink()
     store = DocStore([Doc(id="doc-a", title="A", space="platform/handbook", body="b")])
     authority = Authority({"rivera": {"platform/handbook"}})
-    return TestClient(create_app(store, authority, audit=sink)), sink
+    return TestClient(create_app(store, authority, audit=sink, allow_insecure_header_auth=True)), sink
 
 
 def test_action_is_audited_with_principal():
