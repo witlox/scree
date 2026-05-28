@@ -29,7 +29,8 @@ broken. The adversary targets these; the auditor rates enforcement depth.
 
 - **INV-REF-1** — References are stored by stable `id`, not by path or title.
 - **INV-REF-2** — "Delete" is a tombstone; Git history is retained. There is no
-  destructive erasure of resource history.
+  destructive erasure of resource history. Personal-data erasure (GDPR) is handled
+  separately by anonymization, not by rewriting Git history (INV-DP-2).
 - **INV-REF-3** — A reference whose target is missing or **unreadable to the
   viewer** renders as "unavailable" and exposes **no** title, excerpt, or metadata
   of the target. *(upholds INV-AGG)*
@@ -65,19 +66,39 @@ broken. The adversary targets these; the auditor rates enforcement depth.
 
 ## Encryption (selective; ADR-0005)
 
-- **INV-ENC-1** — Sensitive content (private ticket bodies; designated sensitive
-  doc/risk spaces) is encrypted at rest in Git; cleartext exists only in
-  authorized memory and in the access-controlled index. Routing/permission
+- **INV-ENC-1** — Encrypted-at-rest content is (a) ticket bodies that are
+  sensitivity/compliance-tagged **or** born-encrypted, and (b) designated sensitive
+  doc/risk spaces. Other ticket bodies are cleartext in Git. Cleartext exists only
+  in authorized memory and the access-controlled index; routing/permission
   metadata stays cleartext.
 - **INV-ENC-2** — Internal sensitive content uses client-side recipient keys
-  (authorized staff read/grep it **offline**); external-customer private ticket
-  bodies use Gateway-mediated keys held in Vault and **never** distributed to
-  customers.
+  (authorized staff read/grep it **offline**); encrypted external ticket bodies use
+  a **per-requester** Gateway-mediated key held in Vault, **never** distributed to
+  customers and crypto-shreddable on erasure.
 - **INV-ENC-3** — Where the search index holds decrypted sensitive content, the
-  index is access-controlled and subject to INV-AGG.
+  index is access-controlled and subject to INV-AGG. Encrypted tickets are indexed
+  by **metadata only** (id/status/requester-ref/timestamps); their bodies are not
+  full-text indexed.
 - **INV-ENC-4** — Revocation for client-key content is rotation-based; a prior
   key-holder may retain access to versions decryptable before rotation (accepted
   for the internal-staff trust model).
+
+## Data protection & erasure (ADR-0006)
+
+- **INV-DP-1** — Customer identity/profile (name, email, org) and the
+  requester↔ticket link live in an erasable directory **outside Git**; Git
+  frontmatter stores only an **opaque requester id**, never a name or email.
+- **INV-DP-2** — GDPR erasure = delete the identity record (**anonymization**): the
+  opaque requester id becomes unresolvable; Git history is not rewritten for routine
+  erasure. Tagged/born-encrypted ticket bodies are additionally **crypto-shredded**
+  (per-requester key destroyed).
+- **INV-DP-3** — A ticket is encrypted iff sensitivity/compliance-tagged **or**
+  born-encrypted (the create-time encrypt toggle). Encryption is a create-time
+  decision and is **not** retroactive over Git history.
+- **INV-DP-4** — Scree provides no stronger confidentiality/integrity/erasure
+  guarantee than the GitLab substrate plus selective encryption. Residual free-text
+  PII in untagged cleartext bodies is handled by manual redaction / rare
+  history-rewrite (Atlassian-parity); this bound is documented, not hidden.
 
 ## Identity
 

@@ -204,13 +204,13 @@ These need explicit stakeholder input. The analyst should surface them; the head
 
 **OQ-HE-004**: Ratify migration curation criteria and deadline.
 
-**OQ-HE-005**: Confirm compliance regime constraints (any regulatory requirements on risk register format? Audit trail requirements? Data retention obligations? GDPR data subject request handling?).
+**OQ-HE-005**: Confirm compliance regime constraints. **RESOLVED** (2026-05-28) → ADR-0006 (bounded-by-GitLab; GDPR erasure by anonymization + selective/born encryption). See `resolved-questions.md`.
 
 **OQ-HE-006**: Confirm budget envelope and rollback constraints.
 
 **OQ-HE-007**: Confirm timing of Atlassian disclosure (kept internal vs disclosed for negotiation leverage).
 
-**OQ-HE-008**: Confirm compliance/audit team as stakeholders. Are they consumers of risk register, audit logs, ticket history? Do their requirements constrain the design?
+**OQ-HE-008**: Confirm compliance/audit team as stakeholders. Are they consumers of risk register, audit logs, ticket history? Do their requirements constrain the design? *(Baseline set by ADR-0006 — append-only audit sink + risk register; stakeholder confirmation still pending.)*
 
 **OQ-HE-009**: Confirm list of paths requiring MR-based update (compliance-tagged content, closed risks, designated doc paths).
 

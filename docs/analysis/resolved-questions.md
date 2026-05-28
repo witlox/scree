@@ -72,4 +72,21 @@ specific WYSIWYG editor library (OQ-X-002) remain architect decisions.
 
 ---
 
+## Architect phase — security/compliance (2026-05-28)
+
+- **OQ-HE-005** — Compliance regime / data-protection posture. **Resolved** →
+  **ADR-0006**: bounded-by-GitLab posture; GDPR erasure by **anonymization**
+  (customer identity in an erasable directory outside Git; opaque requester id in
+  Git); **selective + born-encrypted** ticket bodies (per-requester key,
+  crypto-shred on erasure); residual free-text PII handled at Atlassian-parity. No
+  heavier regulatory regime named; a sector certification, if later required,
+  is a new item. See also ADR-0005 (revised), INV-DP-*.
+
+> **OQ-HE-008** remains **open**: ADR-0006 sets the audit/erasure *baseline*
+> (append-only audit sink INV-ID-3, risk register), but whether a dedicated
+> compliance/audit team consumes these and imposes further requirements is still
+> for the Head of Engineering to confirm.
+
+---
+
 **End of resolved questions.**

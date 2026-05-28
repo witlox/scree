@@ -34,9 +34,13 @@ readable Git audit) for whatever it covers.
      age / SOPS-style). Authorized staff hold keys locally, so they clone,
      decrypt, grep, and read **offline**. This is what gives page-level
      permissions independent of repo membership (F-07).
-   - **External-customer private ticket bodies → Gateway-mediated keys** (held in
-     Vault). Customers are online-only (DD-003), need no offline read, and never
-     receive a key; the Gateway stays their enforcement point and auditor.
+   - **External-customer ticket bodies → cleartext-in-Git by default** (revised by
+     ADR-0006). They are encrypted only when **(a)** sensitivity/compliance-tagged
+     or **(b) born encrypted** (the create-time "encrypt" toggle), using a
+     **per-requester** Gateway-mediated key (Vault) — never given to customers, and
+     crypto-shreddable on erasure. F-01 for *cleartext* tickets is handled by
+     constraining the desk repo to agents + Gateway-only access for non-agents (not
+     by blanket encryption).
 3. What is encrypted: the **body** and any sensitive frontmatter fields. Routing/
    permission metadata stays cleartext so the system can locate and authorize.
 

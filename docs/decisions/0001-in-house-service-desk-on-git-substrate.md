@@ -57,3 +57,9 @@ re-creating the lock-in the project exists to escape.
 GitLab Service Desk solves a chunk of the email-threading problem *if* tickets
 live as GitLab issues. We consciously decline that in favor of the md-in-Git +
 ReBAC model. The architect must still decide the email approach (ADR pending).
+
+**Superseded in part by ADR-0006:** ticket *content* remains md-in-Git, but the
+customer **identity/profile** (name, email, org) and the requester↔ticket link
+live in a small erasable identity directory **outside Git** so GDPR erasure works
+by anonymization. Only that directory leaves Git; ticket bodies stay on the Git
+substrate (cleartext by default, encrypted when tagged or born-encrypted).
