@@ -6,6 +6,7 @@ from .openfga import TicketRelations
 class _TicketLike(Protocol):
     # Structural type (avoids an access->servicedesk import cycle).
     id: str
+    requester: str
     community_visible: bool
 
 
@@ -33,6 +34,16 @@ class TicketAuthority:
 
     def is_agent(self, principal: str) -> bool:
         return principal in self._agents
+
+    def can_see_identity(self, principal: str, ticket: _TicketLike) -> bool:
+        """Who may see the requester id: agents, the requester themself, or a
+        directly related party (requester/watcher/assignee) — NOT a viewer who
+        only sees the ticket because it is community_visible (G2-06)."""
+        return (
+            principal in self._agents
+            or principal == ticket.requester
+            or self._relations.can_read(principal, ticket.id)
+        )
 
     def grant(self, user: str, relation: str, ticket_id: str) -> None:
         # I-01: on ticket create, grant the requester their viewer relation.
