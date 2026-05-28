@@ -29,8 +29,11 @@ hold no privileged backend access (DD-006).
 - **Auth:** service credential from Vault.
 - **Failure:** unreachable → ticket authorization **fails closed** (INV-ACC-5); the
   Gateway denies rather than guesses.
-- **Consistency:** tuples are written in the same Gateway operation as the ticket
-  relation change; reconciliation job detects drift.
+- **Source of truth = Git (AR-03).** Ticket relations are authored in the ticket
+  **frontmatter**; OpenFGA tuples are a **derived, rebuildable projection**
+  (INV-ST-2). The Gateway commits Git **first**, then upserts tuples; if the tuple
+  write fails, the next reconcile pass rebuilds it from Git (no "Git-committed but
+  authority-lost" state). A reconciler periodically rebuilds tuples from Git.
 
 ## Vault (secrets + Transit)
 

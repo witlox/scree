@@ -30,10 +30,12 @@ readable Git audit) for whatever it covers.
    sensitive doc/risk **spaces** (e.g. security, compliance, HR). Everything else
    stays cleartext Git, keeping offline-read, grep, and readable audit.
 2. **Key model by audience:**
-   - **Internal sensitive content → client-side recipient keys** (git-crypt /
-     age / SOPS-style). Authorized staff hold keys locally, so they clone,
-     decrypt, grep, and read **offline**. This is what gives page-level
-     permissions independent of repo membership (F-07).
+   - **Client-side recipient keys (age) — scoped at gate-2 (AR-01) to
+     break-glass/DR/SOC content only.** Held out-of-band, readable offline from a
+     clone when the online stack is down. General sensitive doc spaces are
+     **Gateway-mediated** (Vault Transit, web-accessible) per ADR-0008 — that is
+     what now delivers F-07 (page/space-level permissions independent of repo
+     membership). See ADR-0008 for the authoritative key model.
    - **External-customer ticket bodies → cleartext-in-Git by default** (revised by
      ADR-0006). They are encrypted only when **(a)** sensitivity/compliance-tagged
      or **(b) born encrypted** (the create-time "encrypt" toggle), using a

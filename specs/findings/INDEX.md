@@ -28,3 +28,27 @@ sets order, not whether.
 Per project policy every finding was fixed (severity set order, not whether). The
 encryption decision (F-01/F-07) is recorded as **ADR-0005**; its tooling is the
 new architect question **OQ-X-009**.
+
+## Architecture Gate 2 (2026-05-28) — `architecture-gate-2.md`
+
+| ID | Sev | Area | Finding | Status |
+|---|---|---|---|---|
+| AR-01 | **High** | encryption / web | Client-key docs can't be server-rendered (client-key vs SSR) | ✅ resolved | ADR-0008 (Gateway-mediated default; client-key scoped to break-glass) |
+| AR-02 | **High** | DR | Non-Git stores (Transit keys, identity dir) lack DR; key loss = mass loss | ✅ resolved | deployment-topology Break-glass & DR; ADR-0008 |
+| AR-03 | **High** | core | OpenFGA vs Git source-of-truth for ticket relations ambiguous | ✅ resolved | INV-ST-2 (Git truth, OpenFGA derived/rebuildable); integration-contracts |
+| AR-04 | **High** | permissions | Ticket aggregation via ListObjects alone under-grants agents | ✅ resolved | indexer-design + enforcement-map (ListObjects ∪ GitLab membership) |
+| AR-05 | Medium | erasure | Erasure doesn't purge OpenFGA tuples | ✅ resolved | INV-DP-2 |
+| AR-06 | Medium | privacy | Encrypted-ticket title/metadata cleartext may carry PII | ✅ resolved | INV-ENC-3 (title placeholder); data-structures |
+| AR-07 | Medium | availability | Identity directory degraded mode unspecified (SPOF) | ✅ resolved | context-graph degraded-mode table |
+| AR-08 | Medium | performance | GitLab per-item authority eval method unspecified (perf/DoS) | ✅ resolved | indexer-design (resolve readable Spaces once) |
+| AR-09 | Medium | migration | Migration must populate identity dir + OpenFGA, not just Git | ✅ resolved | INV-MIG-4 |
+| AR-10 | Medium | audit | Audit sink store + tamper-evidence + retention not realized | ✅ resolved | INV-ID-3 + deployment-topology Audit store |
+| AR-11 | Medium | performance | INV-AGG depends on unvalidated ListObjects perf | ✅ resolved | indexer-design Performance note → OQ-X-006 + spike |
+| AR-12 | Low | UX | 404-collapse may confuse users who lost access | ✅ resolved | error-taxonomy (accepted; softer same-Space message) |
+
+**Counts:** 4 high · 7 medium · 1 low — **12 total, all resolved.**
+
+The key-model correction (AR-01, caught by the user) reshaped ADR-0005/0008:
+Gateway-mediated (Vault Transit) is the default for encrypted content; client-side
+`age` keys are scoped to **break-glass/DR/SOC** content that must be readable
+offline when the online stack is down.

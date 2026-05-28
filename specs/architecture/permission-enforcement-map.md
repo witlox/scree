@@ -22,7 +22,7 @@ INV-ENC, INV-DP) are called out for the auditor.
 
 | Invariant | Enforcement point | Mechanism |
 |---|---|---|
-| **INV-AGG** (no aggregation leak) | `indexing` aggregation queries, behind `gateway` | **OpenFGA `ListObjects`** for tickets + GitLab authority for repo-scoped items; filter every item per-request; sensitive risk categories in a separate index |
+| **INV-AGG** (no aggregation leak) | `indexing` aggregation queries, behind `gateway` | ticket authority = **OpenFGA `ListObjects` ∪ GitLab desk-repo membership** (agents see all via repo, AR-04); repo items via the requester's resolved readable-Spaces set (resolved once, AR-08); filter every item per-request; sensitive risk categories in a separate index |
 | INV-ACC-1 (single enforcement point) | `gateway` | all clients hit the Gateway; adapters hold no backend access; exception: authorized offline reads of client-key content |
 | INV-ACC-2 (RBAC ∪ ReBAC) | `access` authority composition | GitLab repo/group authority OR OpenFGA relation grants |
 | INV-ACC-3 (ticket visibility) | `access` + OpenFGA | requester/watcher/assignee/agent relations; `community_visible` snapshot |

@@ -104,3 +104,5 @@ class AuditEvent:              # append-only sink (INV-ID-3)
 - `score`/`severity` are derived; validation rejects author-set mismatches.
 - Encrypted `Ticket` bodies are ciphertext at rest; this shape describes the
   decrypted, in-memory/authorized view.
+- For an encrypted ticket, the cleartext `title` is a neutral placeholder; the real
+  title is encrypted with the body (AR-06).

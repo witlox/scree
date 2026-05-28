@@ -73,3 +73,4 @@ one another and where trusted meets untrusted.
 | O365/Graph | inbound/outbound email | inbound ticket creation fails visibly (FM-2) |
 | Slack | capture/notify | capture unavailable; other origins unaffected (FM-7/8) |
 | Object store | external attachments | ticket text still created; attachment retried (FM-14) |
+| Identity directory | requester resolution, notifications, DSAR | authz unaffected (uses opaque ids); resolution/notification degrade; ticket create proceeds with the opaque id, identity backfilled (AR-07) |

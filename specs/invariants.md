@@ -10,8 +10,11 @@ broken. The adversary targets these; the auditor rates enforcement depth.
 
 - **INV-ST-1** — Git is the source of truth. Every resource mutation is a Git
   commit; no resource state exists only in the index or a cache. *(DD-002)*
-- **INV-ST-2** — The index is derived and rebuildable from Git alone. Deleting
-  and rebuilding the index changes no answer the system gives. *(DD-002, prior-art §3)*
+- **INV-ST-2** — The index **and the OpenFGA tuple store** are derived and
+  rebuildable from Git alone (ticket relations are authored in the ticket
+  frontmatter; OpenFGA tuples are a projection of them). Deleting and rebuilding
+  either changes no answer the system gives. The Gateway writes Git first, then
+  upserts tuples; a reconciler rebuilds tuples from Git (AR-03). *(DD-002)*
 - **INV-ST-3** — Every resource carries an integer `schema_version` from its
   first commit. *(DD-021)*
 - **INV-ST-4** — `id` is stable and globally unique; it never changes once
@@ -71,14 +74,18 @@ broken. The adversary targets these; the auditor rates enforcement depth.
   doc/risk spaces. Other ticket bodies are cleartext in Git. Cleartext exists only
   in authorized memory and the access-controlled index; routing/permission
   metadata stays cleartext.
-- **INV-ENC-2** — Internal sensitive content uses client-side recipient keys
-  (authorized staff read/grep it **offline**); encrypted external ticket bodies use
-  a **per-requester** Gateway-mediated key held in Vault, **never** distributed to
-  customers and crypto-shreddable on erasure.
+- **INV-ENC-2** — Encrypted content is **Gateway-mediated (Vault Transit)** by
+  default — per-space key for sensitive doc spaces, per-requester key for tickets
+  (crypto-shreddable on erasure), web-accessible, never offline. **Exception:**
+  break-glass/DR/SOC content uses **client-side `age` keys** held out-of-band (not
+  in Vault) so it is readable **offline** from a clone when the online stack is
+  down. (ADR-0008, AR-01)
 - **INV-ENC-3** — Where the search index holds decrypted sensitive content, the
   index is access-controlled and subject to INV-AGG. Encrypted tickets are indexed
   by **metadata only** (id/status/requester-ref/timestamps); their bodies are not
-  full-text indexed.
+  full-text indexed. An encrypted ticket's cleartext metadata carries no PII — its
+  `title` is a neutral placeholder, and the real title is encrypted with the body
+  (AR-06).
 - **INV-ENC-4** — Revocation for client-key content is rotation-based; a prior
   key-holder may retain access to versions decryptable before rotation (accepted
   for the internal-staff trust model).
@@ -91,7 +98,8 @@ broken. The adversary targets these; the auditor rates enforcement depth.
 - **INV-DP-2** — GDPR erasure = delete the identity record (**anonymization**): the
   opaque requester id becomes unresolvable; Git history is not rewritten for routine
   erasure. Tagged/born-encrypted ticket bodies are additionally **crypto-shredded**
-  (per-requester key destroyed).
+  (per-requester key destroyed), and **all OpenFGA tuples** for the requester id are
+  deleted (no dangling authority — AR-05).
 - **INV-DP-3** — A ticket is encrypted iff sensitivity/compliance-tagged **or**
   born-encrypted (the create-time encrypt toggle). Encryption is a create-time
   decision and is **not** retroactive over Git history.
@@ -109,7 +117,8 @@ broken. The adversary targets these; the auditor rates enforcement depth.
   *(DD-012, OQ-A-016)*
 - **INV-ID-3** — Every Gateway action is audited with principal, resource, action,
   and result, to an append-only, integrity-protected sink (reads and aggregation
-  queries included; these are not Git commits). *(DD-006)* Authorized offline
+  queries included; these are not Git commits). The sink is hash-chained or WORM,
+  with retention per OQ-HE-005 (AR-10). *(DD-006)* Authorized offline
   client-side reads of already-key-held content are not Gateway-audited (accepted
   limitation, ADR-0005).
 - **INV-ID-4** — Writes by a principal who is **not** a GitLab user (external
@@ -189,6 +198,9 @@ broken. The adversary targets these; the auditor rates enforcement depth.
   remains available in the read-only archive. Default is archive; migration is
   opt-in. *(Curation criteria: explicit per-team marking by the deadline — analyst
   proposal; exact deadline and any activity-based pre-filter await OQ-HE-004.)*
+- **INV-MIG-4** — Migration populates Git **and** the identity directory (customer
+  PII, erasable) **and** OpenFGA tuples atomically; imported customer identities
+  enter the erasable directory under the opaque-id model (INV-DP-1). *(AR-09)*
 
 ## Degradation
 

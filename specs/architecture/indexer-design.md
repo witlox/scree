@@ -35,15 +35,25 @@ reuse vs a dedicated store) — deferred; the contract here is structural.
 ```
 request → Gateway (authn) → indexing.query
   1. query the (broad) index for candidate items
-  2. filter EVERY candidate by the requester's authority:
+  2. resolve the requester's readable Spaces ONCE (cached, short TTL) — never
+     a GitLab API call per item (AR-08)
+  3. filter EVERY candidate by the requester's authority:
        - tickets:   OpenFGA ListObjects(user, "read", ticket)
-       - repo items: GitLab authority over the item's Space
-  3. drop unauthorized items entirely (no title/count/metadata leak)
-  4. return results + as-of marker
+                    ∪ GitLab desk-repo membership  ← agents see all desk
+                      tickets via repo authority, not per-ticket tuples (AR-04)
+       - repo items: membership of the item's Space in the resolved set
+  4. drop unauthorized items entirely (no title/count/metadata leak)
+  5. return results + as-of marker
 ```
 
 The filter runs per request, every request — never "filter once at view load,"
-never trust the index to be pre-partitioned (DD-008).
+never trust the index to be pre-partitioned (DD-008). Ticket authority is the
+**union** of OpenFGA relations and GitLab desk-repo membership (INV-ACC-2), so
+agents are not under-granted.
+
+**Performance (AR-11):** `ListObjects` can be costly on large ticket sets; OQ-X-006
+sets a latency target and the docs-frontend/authz spike validates it (assumption
+A-5). Fallback if it misses target: bounded results + cursor pagination.
 
 ## Rebuild & recovery
 
