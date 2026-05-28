@@ -1,3 +1,4 @@
+import datetime as dt
 import uuid
 from dataclasses import replace
 
@@ -72,6 +73,7 @@ class TicketService:
             community_visible=False,
             email_token=token,  # lets later replies thread when RFC headers are stripped
             email_message_id=email_message_id,
+            created_at=dt.datetime.now(dt.timezone.utc).isoformat(),
         )
         self._store.put(ticket)
         # I-01: grant the requester their viewer relation so they can read it.
