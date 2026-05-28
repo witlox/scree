@@ -37,6 +37,11 @@ class GitBackedDocStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
         subprocess.run(["git", "-C", str(self._root), "add", rel_path], check=True, capture_output=True)
+        # Skip the commit if the content is unchanged (no-op save must not crash).
+        if subprocess.run(
+            ["git", "-C", str(self._root), "diff", "--cached", "--quiet", "--", rel_path]
+        ).returncode == 0:
+            return
         subprocess.run(
             ["git", "-C", str(self._root), "-c", f"user.name={author}",
              "-c", f"user.email={author}@scree", "commit", "-m", message],

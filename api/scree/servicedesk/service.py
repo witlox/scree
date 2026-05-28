@@ -43,6 +43,8 @@ class TicketService:
             community_visible=False,
         )
         self._store.put(ticket)
+        # I-01: grant the requester their viewer relation so they can read it.
+        self._authority.grant(requester, "requester", ticket.id)
         return ticket
 
     def _load(self, ticket_id: str) -> Ticket:

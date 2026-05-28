@@ -24,6 +24,8 @@ class TicketRelations(Protocol):
 
     def can_read(self, user: str, ticket_id: str) -> bool: ...
 
+    def write(self, user: str, relation: str, ticket_id: str) -> None: ...
+
 
 class FakeOpenFga:
     """Faithful in-memory stand-in for OpenFGA's `viewer` relation, used by the
@@ -90,3 +92,15 @@ class RealOpenFga:
         )
         resp.raise_for_status()
         return bool(resp.json().get("allowed"))
+
+    def write(self, user: str, relation: str, ticket_id: str) -> None:
+        resp = self._client.post(
+            f"{self._base}/stores/{self._store}/write",
+            json={
+                "authorization_model_id": self._model,
+                "writes": {"tuple_keys": [
+                    {"user": fga_user(user), "relation": relation, "object": fga_object(ticket_id)}
+                ]},
+            },
+        )
+        resp.raise_for_status()
