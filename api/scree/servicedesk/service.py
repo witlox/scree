@@ -109,6 +109,43 @@ class TicketService:
         self._append(ticket.id, requester, email)
         return {"action": "new", "ticket": ticket.id}
 
+    def capture_from_slack(self, reactor: str, author: str, snapshot: str, *, slack_dir, limiter) -> dict:
+        """Capture a Slack thread into a requester-private draft (DD-012/DD-013).
+        INV-SLACK-1: the requester is the captured message's AUTHOR (resolved to a
+        Keycloak identity; refused if unmappable, INV-ID-2); the capturer is
+        recorded separately; capture is rate-limited per Slack user."""
+        reactor_principal = slack_dir.resolve(reactor)
+        if reactor_principal is None:
+            return {"action": "refused", "reason": "reactor identity could not be resolved"}
+        if not limiter.allow(reactor):
+            return {"action": "refused", "reason": "rate limited"}
+        requester = slack_dir.resolve(author)
+        if requester is None:
+            return {"action": "refused", "reason": "author identity could not be resolved"}
+        ticket = self.create("slack", requester)  # community_visible=False (DD-013)
+        self._store.put(replace(ticket, captured_by=reactor_principal))  # capturer recorded separately
+        if self._comments is not None:
+            self._comments.add(TicketComment(
+                ticket_id=ticket.id, author=reactor_principal, body=snapshot, source="slack",
+            ))
+        return {"action": "captured", "ticket": ticket.id,
+                "requester": requester, "captured_by": reactor_principal}
+
+    def link_from_slack(self, reactor: str, ticket_id: str, snapshot: str, *, slack_dir) -> dict:
+        """Attach a thread snapshot to an existing ticket — only if the reactor's
+        mapped identity may see it (existence-leak-safe refusal otherwise)."""
+        reactor_principal = slack_dir.resolve(reactor)
+        if reactor_principal is None:
+            return {"action": "refused", "reason": "reactor identity could not be resolved"}
+        ticket = self._store.get(ticket_id)
+        if ticket is None or not self._authority.can_read(reactor_principal, ticket):
+            return {"action": "refused", "reason": "ticket not visible"}
+        if self._comments is not None:
+            self._comments.add(TicketComment(
+                ticket_id=ticket_id, author=reactor_principal, body=snapshot, source="slack",
+            ))
+        return {"action": "linked", "ticket": ticket_id}
+
     def _hold(self, email: InboundEmail, decision) -> None:
         if self._quarantine is not None:
             self._quarantine.add(QuarantinedEmail(
