@@ -28,6 +28,7 @@ def _ctx():
         DocStore([]), Authority({}),
         ticket_store=store, ticket_authority=authority, comment_store=comments,
         identity_directory=identity, quarantine_store=quarantine,
+        service_principals={"svc:poller"},
         allow_insecure_header_auth=True,
     )
     return TestClient(app), store, comments, identity, quarantine
@@ -42,13 +43,15 @@ def _raw(frm, subject, references="", forged_auth=False):
     return "\n".join(headers) + "\n\nthe message body\n"
 
 
-def _post(client, raw, *, verified=False, sender=None, who="agent:dani"):
+def _post(client, raw, *, verified=False, sender=None, who="svc:poller"):
     body = {"raw": raw, "verified": verified, "sender": sender}
     return client.post("/tickets/inbound-email", json=body, headers={"X-Spike-User": who})
 
 
-def test_inbound_email_is_agent_only():
+def test_inbound_email_is_service_principal_only():
+    # G6-02: a human agent is NOT a service principal and cannot ingest.
     client, *_ = _ctx()
+    assert _post(client, _raw(SENDER, "hi"), verified=True, sender=SENDER, who="agent:dani").status_code == 403
     assert _post(client, _raw(SENDER, "hi"), verified=True, sender=SENDER, who="cust").status_code == 403
 
 

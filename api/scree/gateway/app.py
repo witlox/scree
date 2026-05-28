@@ -99,6 +99,7 @@ def create_app(
     identity_directory: IdentityDirectory | None = None,
     quarantine_store: QuarantineStore | None = None,
     compliance_principals: set[str] | None = None,
+    service_principals: set[str] | None = None,
     slack_directory: SlackDirectory | None = None,
     slack_rate_limiter: CaptureRateLimiter | None = None,
     planning_index: PlanningIndex | None = None,
@@ -250,6 +251,9 @@ def create_app(
         identity = identity_directory or IdentityDirectory()
         quarantine = quarantine_store or QuarantineStore()
         compliance = compliance_principals or set()  # fail-closed: no one erases unless configured
+        # G6-02: ingestion (Slack bot / email poller) runs as a dedicated service
+        # principal, distinct from human agents; fail-closed if unconfigured.
+        services = service_principals or set()
         slack_dir = slack_directory or SlackDirectory()
         slack_limiter = slack_rate_limiter or CaptureRateLimiter()
         receipts = ErasureReceiptStore()
@@ -330,8 +334,8 @@ def create_app(
             # verdict (`verified`) + aligned `sender` come from the poller, NOT the
             # attacker-controlled raw message (G4-01). The verified sender — not the
             # caller — becomes the (opaque) requester (INV-EMAIL-1 / G2-02).
-            if not ticket_authority.is_agent(principal):
-                raise HTTPException(status_code=403, detail="email ingestion is agent-only")
+            if principal not in services:  # G6-02: dedicated poller service principal
+                raise HTTPException(status_code=403, detail="email ingestion is service-principal only")
             if len(raw.encode("utf-8")) > MAX_INBOUND_EMAIL_BYTES:  # G4-06
                 raise HTTPException(status_code=413, detail="inbound email too large")
             return service.ingest_email(parse_inbound(raw), verified=verified, sender=sender)
@@ -345,8 +349,8 @@ def create_app(
         ) -> dict:
             # DD-006: the Slack bot is a separate service that posts here as an
             # agent/service principal; the user identities ride in the event.
-            if not ticket_authority.is_agent(principal):
-                raise HTTPException(status_code=403, detail="slack capture is bot/agent-only")
+            if principal not in services:
+                raise HTTPException(status_code=403, detail="slack capture is service-principal only")
             return service.capture_from_slack(reactor, author, snapshot, slack_dir=slack_dir, limiter=slack_limiter)
 
         @app.post("/slack/link-ticket")
@@ -356,8 +360,8 @@ def create_app(
             snapshot: str = Body(default="", embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
-            if not ticket_authority.is_agent(principal):
-                raise HTTPException(status_code=403, detail="slack link is bot/agent-only")
+            if principal not in services:
+                raise HTTPException(status_code=403, detail="slack link is service-principal only")
             return service.link_from_slack(reactor, ticket_id, snapshot, slack_dir=slack_dir)
 
         @app.get("/identities/erasures")

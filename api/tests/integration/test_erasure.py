@@ -28,7 +28,8 @@ def _ctx():
         DocStore([]), Authority({}),
         ticket_store=store, ticket_authority=authority,
         identity_directory=identity, quarantine_store=quarantine,
-        compliance_principals={DPO}, allow_insecure_header_auth=True,
+        compliance_principals={DPO}, service_principals={"svc:poller"},
+        allow_insecure_header_auth=True,
     )
     return TestClient(app), store, identity, fga, quarantine
 
@@ -36,7 +37,7 @@ def _ctx():
 def _ingest(client, frm=SENDER, verified=True):
     raw = f"From: {frm}\nSubject: help\nMessage-ID: <m1@x>\n\nbody\n"
     body = {"raw": raw, "verified": verified, "sender": frm}
-    return client.post("/tickets/inbound-email", json=body, headers={"X-Spike-User": "agent:dani"}).json()
+    return client.post("/tickets/inbound-email", json=body, headers={"X-Spike-User": "svc:poller"}).json()
 
 
 def test_purge_user_drops_only_that_users_tuples():

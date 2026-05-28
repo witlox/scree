@@ -133,3 +133,15 @@ Adversarial pass over the GDPR erasure slice (PR #58). Primary target: erasure c
 | G5-03 | Low | Robustness/compliance | No durable erasure receipt; residual (Git/comment) scope not disclosed | ✅ #59 (ErasureReceiptStore + GET /identities/erasures; residual in response) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking` (no critical/high).
+
+## Implementation Gate 6 (2026-05-28) — `impl-gate-6.md`
+
+Adversarial pass over the Slack capture slice (PR #60). Primary target: Slack identity/authenticity.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G6-01 | Medium | Privacy/data-protection | Slack-mapped requester may be PII-bearing (re-introduces G4-03) | ✅ #61 (opaque via IdentityDirectory; agents pass through) |
+| G6-02 | Medium | Security/trust-boundary | Slack endpoints trust arbitrary event fields from any agent; no authenticity, over-broad authz | ✅ #61 (dedicated service_principals gate; also email inbound) |
+| G6-03 | Low | Robustness | Rate limiter per-process, unbounded, counts attempts not captures | ✅ #61 (count successes; evict stale; shared-state documented) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
