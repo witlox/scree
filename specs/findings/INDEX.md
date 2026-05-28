@@ -182,3 +182,15 @@ Adversarial pass over the token-exchange + composed-authority slice (PR #66). Pr
 | G9-03 | Low | Correctness | readable_spaces counts only membership (under-grant for public Spaces) | ✅ #67 (accepted: member-access Space model, documented) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
+
+## Implementation Gate 10 (2026-05-28) — `impl-gate-10.md`
+
+Adversarial pass over the migration slice (PR #68). Primary target: idempotency durability (INV-MIG-2).
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G10-01 | Medium | Correctness/idempotency | Idempotency keyed on in-memory IdMap → re-run after restart duplicates | ✅ #69 (deterministic id + durable-store existence check) |
+| G10-02 | Medium | Correctness/atomicity | Non-atomic migration → mid-item failure duplicates on re-run | ✅ #69 (re-run repairs mapping, no duplicate) |
+| G10-03 | Low | Correctness/reporting | Confluence-without-doc_writer counted migrated but archived | ✅ #69 (counted by actual outcome) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.

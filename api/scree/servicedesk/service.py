@@ -57,10 +57,12 @@ class TicketService:
         *,
         email_message_id: str | None = None,
         encrypted: bool = False,
+        ticket_id: str | None = None,
     ) -> Ticket:
         """Create a ticket from any origin, normalized to one record: opaque
         requester (INV-DP-1), status open. Tickets default requester-private even
-        from public Slack threads (DD-013). `encrypted` is a create-time decision."""
+        from public Slack threads (DD-013). `encrypted` is a create-time decision.
+        `ticket_id` lets migration use a DETERMINISTIC id for idempotency (G10-01)."""
         # DD-013: tickets default requester-private regardless of origin (even a
         # public Slack thread); promotion to community-visible is explicit.
         token = None
@@ -69,7 +71,7 @@ class TicketService:
             self._email_seq += 1
             token = f"SCREE-{self._email_seq}"
         ticket = Ticket(
-            id=f"ticket-{uuid.uuid4().hex[:8]}",
+            id=ticket_id or f"ticket-{uuid.uuid4().hex[:8]}",
             requester=requester,
             space=space,
             status="open",
@@ -169,6 +171,9 @@ class TicketService:
                 claimed_from=email.from_addr, subject=email.subject, body=email.body,
                 reason=decision.reason or "quarantined", candidate_ticket=decision.ticket_id,
             ))
+
+    def exists(self, ticket_id: str) -> bool:
+        return self._store.get(ticket_id) is not None
 
     def add_comment(self, ticket_id: str, author: str, body: str, source: str = "api") -> None:
         self._store_comment(ticket_id, author, body, source)
