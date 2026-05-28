@@ -38,6 +38,7 @@ from scree.integration.o365.inbound import parse_inbound
 from scree.integration.slack.capture import CaptureRateLimiter, SlackDirectory
 from scree.migration.models import ArchiveStore, IdMap, SourceItem, SourceKind
 from scree.migration.pipeline import MigrationPipeline
+from scree.portal.stores import AttachmentStore, PreferenceStore
 from scree.servicedesk.comments import CommentStore
 from scree.servicedesk.lifecycle import IllegalTransition
 from scree.servicedesk.quarantine import QuarantineStore
@@ -82,6 +83,15 @@ class SourceItemIn(BaseModel):
 
 class MigrationRunIn(BaseModel):
     items: list[SourceItemIn]
+
+
+class PreferenceIn(BaseModel):
+    preference: str
+
+
+class AttachmentIn(BaseModel):
+    filename: str
+    content: str  # text payload for the spike (real impl streams bytes to object storage)
 
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
@@ -138,6 +148,8 @@ def create_app(
     gitlab_authority: SpaceAuthority | None = None,
     token_exchanger: TokenExchanger | None = None,
     gitlab_audience: str = "gitlab",
+    preference_store: PreferenceStore | None = None,
+    attachment_store: AttachmentStore | None = None,
     audit: AuditSink | None = None,
     allow_insecure_header_auth: bool = False,
 ) -> FastAPI:
@@ -172,6 +184,8 @@ def create_app(
     orphan_cache = OrphanCache()
     id_map = IdMap()  # migration old→new id mapping (INV-MIG-1), survives the app's lifetime
     archive_store = ArchiveStore()
+    prefs = preference_store or PreferenceStore()  # portal self-service preferences
+    attachments = attachment_store or AttachmentStore()  # object storage (NOT Git)
     # G9-01 (AR-08): short-TTL caches so a busy Gateway doesn't exchange tokens /
     # resolve GitLab membership on every request.
     _token_cache: TtlCache[str] = TtlCache(ttl=60.0)
@@ -306,6 +320,15 @@ def create_app(
         )
         orphan_cache.report = report
         return {"refreshed": True, "as_of": report.as_of}
+
+    @app.get("/portal/preferences")
+    def get_preferences(principal: str = Depends(get_principal)) -> dict:
+        return {"preference": prefs.get(principal)}
+
+    @app.put("/portal/preferences")
+    def set_preferences(body: PreferenceIn, principal: str = Depends(get_principal)) -> dict:
+        prefs.set(principal, body.preference)  # self-service, applies to future notifications
+        return {"preference": body.preference}
 
     @app.get("/migration/resolve/{legacy_id:path}")
     def resolve_legacy(legacy_id: str, principal: str = Depends(get_principal)) -> dict:
@@ -452,6 +475,41 @@ def create_app(
                 raise HTTPException(status_code=404)
             # Gateway-mediated decryption (ADR-0008): bodies are ciphertext at rest.
             return service.read_comments(ticket_id)
+
+        @app.get("/community/search")
+        def community_search(q: str, principal: str = Depends(get_principal)) -> list[dict]:
+            # Portal community KB: ONLY community_visible tickets (curated public
+            # snapshot, INV-LC-2); a private/non-promoted ticket NEVER appears.
+            needle = q.lower()
+            out = []
+            for t in ticket_store.all():
+                if not t.community_visible:
+                    continue
+                bodies = [c["body"] for c in service.read_comments(t.id)]
+                if any(needle in (b or "").lower() for b in bodies):
+                    out.append({"id": t.id})  # requester not disclosed (G2-06)
+            return out
+
+        @app.post("/tickets/{ticket_id}/attachments")
+        def add_attachment(ticket_id: str, body: AttachmentIn,
+                           principal: str = Depends(get_principal)) -> dict:
+            t = ticket_store.get(ticket_id)
+            if t is None or not ticket_authority.can_read(principal, t):
+                raise HTTPException(status_code=404)
+            raw = body.content.encode("utf-8")
+            if len(raw) > MAX_COMMENT_BYTES:
+                raise HTTPException(status_code=413, detail="attachment too large")
+            # Stored in OBJECT STORAGE, not Git (external-attachment decision).
+            att = attachments.put(ticket_id, body.filename, raw)
+            return {"filename": att.filename, "object_key": att.object_key}
+
+        @app.get("/tickets/{ticket_id}/attachments")
+        def list_attachments(ticket_id: str, principal: str = Depends(get_principal)) -> list[dict]:
+            t = ticket_store.get(ticket_id)
+            if t is None or not ticket_authority.can_read(principal, t):
+                raise HTTPException(status_code=404)
+            return [{"filename": a.filename, "object_key": a.object_key}
+                    for a in attachments.for_ticket(ticket_id)]
 
         @app.post("/tickets/{ticket_id}/encrypt")
         def encrypt_ticket(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
