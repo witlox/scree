@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 TicketStatus = Literal["open", "resolved", "closed"]
+Origin = Literal["email", "web", "slack", "api"]
 
 
 @dataclass(frozen=True)
@@ -15,3 +16,5 @@ class Ticket:
     status: TicketStatus = "open"
     assignee: str | None = None
     community_visible: bool = False
+    origin: Origin = "api"
+    email_token: str | None = None  # low-trust threading candidate (INV-EMAIL-1)

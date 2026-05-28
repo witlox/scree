@@ -1,9 +1,10 @@
+import uuid
 from dataclasses import replace
 
 from scree.access.ticket_authority import TicketAuthority
 
 from .lifecycle import transition
-from .models import Ticket, TicketStatus
+from .models import Origin, Ticket, TicketStatus
 from .store import TicketStore
 
 
@@ -26,6 +27,23 @@ class TicketService:
     def __init__(self, store: TicketStore, authority: TicketAuthority) -> None:
         self._store = store
         self._authority = authority
+
+    def create(self, origin: Origin, requester: str, space: str = "support/service-desk") -> Ticket:
+        """Create a ticket from any origin, normalized to one record: opaque
+        requester (INV-DP-1), status open. Tickets default requester-private even
+        from public Slack threads (DD-013)."""
+        # DD-013: tickets default requester-private regardless of origin (even a
+        # public Slack thread); promotion to community-visible is explicit.
+        ticket = Ticket(
+            id=f"ticket-{uuid.uuid4().hex[:8]}",
+            requester=requester,
+            space=space,
+            status="open",
+            origin=origin,
+            community_visible=False,
+        )
+        self._store.put(ticket)
+        return ticket
 
     def _load(self, ticket_id: str) -> Ticket:
         ticket = self._store.get(ticket_id)
