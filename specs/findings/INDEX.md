@@ -73,3 +73,23 @@ Adversarial pass over merged code (PRs #33–#44).
 **Counts:** 3 high · 6 medium · 1 low — **10 total, all resolved.** I-03 core
 landed; its prod-hardening follow-ups (mandatory authenticator, Keycloak JWKS
 `@contract`, RFC 8693) are tracked beyond gate-1.
+
+## Implementation Gate 2 (2026-05-28) — `impl-gate-2.md`
+
+Adversarial pass over the merged custom layer after gate-1 + OIDC/Keycloak (PRs #45–#50).
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G2-01 | **High** | Security/path-traversal | Arbitrary file write via doc-write `path` | open |
+| G2-02 | **High** | Security/authz | Ticket create trusts client `requester`, ignores principal | open |
+| G2-03 | **High** | Security/identity | Auth default-off; X-Spike-User header trusted (I-03 follow-up) | open |
+| G2-04 | Medium | Security/authz | Write authority on frontmatter `space`, not `path` | open |
+| G2-05 | Medium | Security/identity | Principal from mutable `preferred_username` not `sub` | open |
+| G2-06 | Medium | Privacy/aggregation | community_visible views leak opaque `requester` | open |
+| G2-07 | Medium | Robustness/DoS | YAML frontmatter unbounded (alias bomb, size) | open |
+| G2-08 | Medium | Robustness/observability | 5xx bypasses audit middleware | open |
+| G2-09 | Low | Correctness/input | Risk/ticket inputs not range/enum validated | open |
+| G2-10 | Low | Security/identity | `/risks/assess` unauthenticated | open |
+| G2-11 | Low | Robustness/concurrency | Git `index.lock` races → 500 | open |
+
+**Counts:** 3 high · 5 medium · 3 low — **11 total.** G2-01/02/03 `gate:blocking`.

@@ -1,3 +1,5 @@
+from pathlib import PurePosixPath
+
 from scree.access.authority import Authority
 
 from .frontmatter import parse  # InvalidFrontmatter propagates to the gateway (422)
@@ -6,6 +8,22 @@ from .git_store import GitBackedDocStore
 
 class Forbidden(PermissionError):
     pass
+
+
+class InvalidPath(ValueError):
+    """A write path that escapes the Space (absolute or `..`), G2-01."""
+
+
+class SpaceMismatch(PermissionError):
+    """Frontmatter `space` does not match the Space this writer targets, G2-04."""
+
+
+def is_safe_relpath(path: str) -> bool:
+    """A path that stays inside the Space: relative, no `..`, non-empty (G2-01)."""
+    if not path or path.endswith("/"):
+        return False
+    p = PurePosixPath(path)
+    return not p.is_absolute() and ".." not in p.parts and "\x00" not in path
 
 
 class MRRequired(PermissionError):
@@ -36,16 +54,24 @@ class DocService:
         self,
         store: GitBackedDocStore,
         authority: Authority,
+        space: str | None = None,
         governed_prefixes: set[str] | None = None,
     ) -> None:
         self._store = store
         self._authority = authority
+        self._space = space  # the Space (GitLab project) this store serves
         self._governed = governed_prefixes or set()
 
     def write(self, path: str, content: str, author: str, base_rev: str | None = None) -> dict:
         meta = parse(content)  # InvalidFrontmatter -> 422 at the gateway (INV-ST-3)
         if meta.get("kind") != "doc":
             raise WrongKind(meta.get("kind"))  # INV-ST: docs endpoint is doc-only
+        # G2-04: the doc's declared Space must match the Space this store serves,
+        # so write authority (checked below) governs where the file actually lands.
+        if self._space is not None and meta["space"] != self._space:
+            raise SpaceMismatch(meta["space"])
+        if not is_safe_relpath(path):
+            raise InvalidPath(path)  # G2-01: confine writes inside the Space
         if not self._authority.can_write(author, meta["space"]):
             raise Forbidden(author)
         if is_governed(path, self._governed):
