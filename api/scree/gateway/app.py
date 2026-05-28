@@ -38,6 +38,7 @@ from scree.integration.o365.inbound import parse_inbound
 from scree.integration.slack.capture import CaptureRateLimiter, SlackDirectory
 from scree.migration.models import ArchiveStore, IdMap, SourceItem, SourceKind
 from scree.migration.pipeline import MigrationPipeline
+from scree.platform.health import Availability
 from scree.portal.stores import AttachmentStore, PreferenceStore
 from scree.servicedesk.comments import CommentStore
 from scree.servicedesk.lifecycle import IllegalTransition
@@ -163,6 +164,7 @@ def create_app(
     gitlab_audience: str = "gitlab",
     preference_store: PreferenceStore | None = None,
     attachment_store: AttachmentStore | None = None,
+    availability: Availability | None = None,
     audit: AuditSink | None = None,
     allow_insecure_header_auth: bool = False,
 ) -> FastAPI:
@@ -199,6 +201,12 @@ def create_app(
     archive_store = ArchiveStore()
     prefs = preference_store or PreferenceStore()  # portal self-service preferences
     attachments = attachment_store or AttachmentStore()  # object storage (NOT Git)
+    health = availability or Availability()
+
+    def _require_gitlab() -> None:
+        # INV-DEG-1: refuse writes clearly when GitLab is down — never silently drop.
+        if not health.gitlab_up:
+            raise HTTPException(status_code=503, detail="GitLab is unavailable; write refused")
     # G9-01 (AR-08): short-TTL caches so a busy Gateway doesn't exchange tokens /
     # resolve GitLab membership on every request.
     _token_cache: TtlCache[str] = TtlCache(ttl=60.0)
@@ -305,6 +313,7 @@ def create_app(
             body: RiskCreateIn,
             principal: str = Depends(get_principal),
         ) -> dict:
+            _require_gitlab()
             if not authority.can_write(principal, body.space):
                 raise HTTPException(status_code=403)
             risk = Risk(id=f"risk-{uuid.uuid4().hex[:8]}", title=body.title, space=body.space,
@@ -408,6 +417,7 @@ def create_app(
             base_rev: str | None = Body(default=None, embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
+            _require_gitlab()
             return doc_writer.write(path, content, principal, base_rev)
 
     if ticket_store is not None and ticket_authority is not None:
@@ -468,6 +478,7 @@ def create_app(
             body: TicketCreateIn,
             principal: str = Depends(get_principal),
         ) -> dict:
+            _require_gitlab()  # INV-DEG-1: refuse creation when GitLab is down
             # G2-02: bind the requester to the authenticated principal. Only an
             # agent may open a ticket on behalf of another requester.
             requester = body.requester
@@ -550,11 +561,13 @@ def create_app(
             body: TicketTransitionIn,
             principal: str = Depends(get_principal),
         ) -> dict:
+            _require_gitlab()
             t = service.transition(ticket_id, body.status, principal)
             return {"id": t.id, "status": t.status, "community_visible": t.community_visible}
 
         @app.post("/tickets/{ticket_id}/community-visible")
         def promote(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
+            _require_gitlab()
             t = service.promote_community_visible(ticket_id, principal)
             return {"id": t.id, "community_visible": t.community_visible}
 
@@ -572,6 +585,9 @@ def create_app(
             # caller — becomes the (opaque) requester (INV-EMAIL-1 / G2-02).
             if principal not in services:  # G6-02: dedicated poller service principal
                 raise HTTPException(status_code=403, detail="email ingestion is service-principal only")
+            if not health.email_up:  # INV-DEG-2: O365 down → fail visibly, no silent loss
+                raise HTTPException(status_code=503, detail="email/O365 is unavailable")
+            _require_gitlab()  # ticket creation also needs GitLab
             if len(raw.encode("utf-8")) > MAX_INBOUND_EMAIL_BYTES:  # G4-06
                 raise HTTPException(status_code=413, detail="inbound email too large")
             return service.ingest_email(parse_inbound(raw), verified=verified, sender=sender)
@@ -587,6 +603,7 @@ def create_app(
             # agent/service principal; the user identities ride in the event.
             if principal not in services:
                 raise HTTPException(status_code=403, detail="slack capture is service-principal only")
+            _require_gitlab()  # INV-DEG-1: capture creates a ticket
             _check_comment_size(snapshot)  # G8-03
             return service.capture_from_slack(reactor, author, snapshot, slack_dir=slack_dir, limiter=slack_limiter)
 
