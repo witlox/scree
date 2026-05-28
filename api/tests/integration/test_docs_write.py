@@ -27,21 +27,27 @@ def _client(repo):
     return TestClient(create_app(store, authority, doc_writer=service))
 
 
-def _post(client, path, content, user="writer"):
-    return client.post("/docs", json={"path": path, "content": content}, headers={"X-Spike-User": user})
+def _post(client, path, content, user="writer", base_rev=None):
+    return client.post(
+        "/docs",
+        json={"path": path, "content": content, "base_rev": base_rev},
+        headers={"X-Spike-User": user},
+    )
 
 
 def test_write_creates_version_and_is_readable(repo):
     client = _client(repo)
-    assert _post(client, "docs/new.md", NEW_DOC).status_code == 200
+    r1 = _post(client, "docs/new.md", NEW_DOC)
+    assert r1.status_code == 200
+    rev = r1.json()["rev"]
 
     got = client.get("/docs/doc-new", headers={"X-Spike-User": "writer"})
     assert got.status_code == 200
     assert "First version" in got.json()["body"]
 
-    # Writing again produces a new committed version.
+    # Writing again (with the current rev) produces a new committed version.
     v2 = NEW_DOC.replace("First version.", "Second version.")
-    assert _post(client, "docs/new.md", v2).status_code == 200
+    assert _post(client, "docs/new.md", v2, base_rev=rev).status_code == 200
     assert "Second version" in client.get("/docs/doc-new", headers={"X-Spike-User": "writer"}).json()["body"]
 
 
