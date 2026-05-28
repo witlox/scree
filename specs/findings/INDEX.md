@@ -194,3 +194,15 @@ Adversarial pass over the migration slice (PR #68). Primary target: idempotency 
 | G10-03 | Low | Correctness/reporting | Confluence-without-doc_writer counted migrated but archived | ✅ #69 (counted by actual outcome) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
+
+## Implementation Gate 11 (2026-05-28) — `impl-gate-11.md`
+
+Adversarial pass over the portal-backend slice (PR #70). Primary target: public/community surface + external uploads.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G11-01 | Medium | Security/confidentiality | Community search decrypts & exposes encrypted-ticket content | ✅ #71 (exclude encrypted from search; refuse promoting encrypted) |
+| G11-02 | Medium | Security/authz | Attachment upload on can_read → anyone can attach to a community ticket | ✅ #71 (participant-only via can_see_identity) |
+| G11-03 | Low | Security/input | Attachments not type-restricted/scanned (+ unindexed search) | ✅ #71 (executable-extension allowlist; AV/index noted) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.

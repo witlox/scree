@@ -101,6 +101,19 @@ def _check_comment_size(text: str | None) -> None:
     if text is not None and len(text.encode("utf-8")) > MAX_COMMENT_BYTES:
         raise HTTPException(status_code=413, detail="comment body too large")
 
+
+# G11-03: reject executable/script attachment types from external uploads. (AV
+# scanning at the object-storage boundary is a deployment concern.)
+_BLOCKED_ATTACHMENT_EXT = {
+    ".exe", ".dll", ".bat", ".cmd", ".com", ".sh", ".ps1", ".scr", ".msi",
+    ".js", ".jar", ".vbs", ".app", ".deb", ".rpm",
+}
+
+
+def _safe_attachment(filename: str) -> bool:
+    name = (filename or "").lower()
+    return not any(name.endswith(ext) for ext in _BLOCKED_ATTACHMENT_EXT)
+
 # Central error taxonomy: domain exception -> HTTP status (error-taxonomy.md, I-10).
 _ERROR_STATUS: dict[type[Exception], int] = {
     InvalidFrontmatter: 422,
@@ -483,19 +496,27 @@ def create_app(
             needle = q.lower()
             out = []
             for t in ticket_store.all():
-                if not t.community_visible:
-                    continue
+                if not t.community_visible or t.encrypted:
+                    continue  # G11-01: never decrypt encrypted content into the public KB
                 bodies = [c["body"] for c in service.read_comments(t.id)]
                 if any(needle in (b or "").lower() for b in bodies):
                     out.append({"id": t.id})  # requester not disclosed (G2-06)
             return out
 
+        def _attachment_ticket(ticket_id: str, principal: str):
+            # G11-02: uploads/listing are participant-only (requester/agent/related),
+            # NOT mere community read — else any authenticated user could attach.
+            t = ticket_store.get(ticket_id)
+            if t is None or not ticket_authority.can_see_identity(principal, t):
+                raise HTTPException(status_code=404)
+            return t
+
         @app.post("/tickets/{ticket_id}/attachments")
         def add_attachment(ticket_id: str, body: AttachmentIn,
                            principal: str = Depends(get_principal)) -> dict:
-            t = ticket_store.get(ticket_id)
-            if t is None or not ticket_authority.can_read(principal, t):
-                raise HTTPException(status_code=404)
+            _attachment_ticket(ticket_id, principal)
+            if not _safe_attachment(body.filename):  # G11-03: reject executable types
+                raise HTTPException(status_code=415, detail="attachment type not allowed")
             raw = body.content.encode("utf-8")
             if len(raw) > MAX_COMMENT_BYTES:
                 raise HTTPException(status_code=413, detail="attachment too large")
@@ -505,9 +526,7 @@ def create_app(
 
         @app.get("/tickets/{ticket_id}/attachments")
         def list_attachments(ticket_id: str, principal: str = Depends(get_principal)) -> list[dict]:
-            t = ticket_store.get(ticket_id)
-            if t is None or not ticket_authority.can_read(principal, t):
-                raise HTTPException(status_code=404)
+            _attachment_ticket(ticket_id, principal)
             return [{"filename": a.filename, "object_key": a.object_key}
                     for a in attachments.for_ticket(ticket_id)]
 
