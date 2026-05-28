@@ -1,5 +1,9 @@
-from fastapi import Body, Depends, FastAPI, Header, HTTPException
+import uuid
 
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from scree.access.audit import AuditSink
 from scree.access.authority import Authority
 from scree.access.oidc import AuthError, OidcAuthenticator
 from scree.access.ticket_authority import TicketAuthority
@@ -7,19 +11,32 @@ from scree.knowledge.doc_service import Conflict, DocService, DuplicateId, MRReq
 from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.store import DocStore
-import uuid
-
 from scree.risk.models import Risk
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
 from scree.servicedesk.lifecycle import IllegalTransition
-from scree.servicedesk.service import (
-    Forbidden,
-    NotPromotable,
-    TicketNotFound,
-    TicketService,
-)
+from scree.servicedesk.service import Forbidden, NotPromotable, TicketNotFound, TicketService
 from scree.servicedesk.store import TicketStore
+
+# Central error taxonomy: domain exception -> HTTP status (error-taxonomy.md, I-10).
+_ERROR_STATUS: dict[type[Exception], int] = {
+    InvalidFrontmatter: 422,
+    WrongKind: 422,
+    DocForbidden: 403,
+    Forbidden: 403,
+    MRRequired: 409,
+    DuplicateId: 409,
+    Conflict: 409,
+    IllegalTransition: 409,
+    NotPromotable: 409,
+    TicketNotFound: 404,
+}
+
+
+def _make_handler(status: int):
+    async def handler(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(status_code=status, content={"detail": type(exc).__name__})
+    return handler
 
 
 def create_app(
@@ -31,14 +48,30 @@ def create_app(
     doc_writer: DocService | None = None,
     authenticator: OidcAuthenticator | None = None,
     risk_store: RiskStore | None = None,
+    audit: AuditSink | None = None,
 ) -> FastAPI:
     """The single enforcement point. Identity comes from a verified OIDC bearer
     token (INV-ID-1) when an authenticator is configured; otherwise it falls back
-    to the X-Spike-User header (spike/dev only)."""
+    to the X-Spike-User header (spike/dev only). Domain exceptions map to HTTP via
+    central handlers; every action is audited (INV-ID-3)."""
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
 
+    for exc_type, status in _ERROR_STATUS.items():
+        app.add_exception_handler(exc_type, _make_handler(status))
+
+    if audit is not None:
+        @app.middleware("http")
+        async def audit_mw(request: Request, call_next):
+            response = await call_next(request)
+            audit.record(
+                getattr(request.state, "principal", None),
+                request.method, request.url.path, response.status_code,
+            )
+            return response
+
     def get_principal(
+        request: Request,
         authorization: str | None = Header(default=None),
         x_spike_user: str | None = Header(default=None),
     ) -> str:
@@ -46,12 +79,15 @@ def create_app(
             if not authorization or not authorization.lower().startswith("bearer "):
                 raise HTTPException(status_code=401, detail="missing bearer token")
             try:
-                return authenticator.principal(authorization.split(" ", 1)[1])
+                principal = authenticator.principal(authorization.split(" ", 1)[1])
             except AuthError:
                 raise HTTPException(status_code=401, detail="invalid token")
-        if x_spike_user:
-            return x_spike_user  # spike/dev fallback when no authenticator configured
-        raise HTTPException(status_code=401, detail="no identity")
+        elif x_spike_user:
+            principal = x_spike_user  # spike/dev fallback when no authenticator
+        else:
+            raise HTTPException(status_code=401, detail="no identity")
+        request.state.principal = principal  # I-08: record for the audit sink
+        return principal
 
     @app.post("/risks/assess")
     def assess_risk(
@@ -59,17 +95,10 @@ def create_app(
         likelihood: int = Body(..., embed=True),
         impact: int = Body(..., embed=True),
     ) -> dict:
-        # Stateless preview of derived score/severity + whether it fires the
-        # critical webhook (INV-IX-1). Persistence reuses the doc-write path.
-        risk = Risk(
-            id="(preview)", title="", space="", category=category,
-            likelihood=likelihood, impact=impact, strategy="mitigated",
-        )
-        return {
-            "score": risk.score,
-            "severity": risk.severity,
-            "fires_critical_webhook": fires_critical_webhook(risk),
-        }
+        risk = Risk(id="(preview)", title="", space="", category=category,
+                    likelihood=likelihood, impact=impact, strategy="mitigated")
+        return {"score": risk.score, "severity": risk.severity,
+                "fires_critical_webhook": fires_critical_webhook(risk)}
 
     if risk_store is not None:
 
@@ -97,25 +126,20 @@ def create_app(
 
         @app.get("/risks")
         def list_risks(principal: str = Depends(get_principal)) -> list[dict]:
-            # INV-AGG: only risks in Spaces the principal may read.
-            readable = authority.readable_spaces(principal)
+            readable = authority.readable_spaces(principal)  # INV-AGG over risks
             return [_risk_view(r) for r in risk_store.all() if r.space in readable]
 
     @app.get("/docs")
     def list_docs(principal: str = Depends(get_principal)) -> list[dict]:
         # INV-AGG: filter EVERY item by the requester's authority, per request.
-        return [
-            {"id": d.id, "title": d.title, "space": d.space}
-            for d in store.all()
-            if authority.can_read(principal, d)
-        ]
+        return [{"id": d.id, "title": d.title, "space": d.space}
+                for d in store.all() if authority.can_read(principal, d)]
 
     @app.get("/docs/{doc_id}")
     def get_doc(doc_id: str, principal: str = Depends(get_principal)) -> dict:
         d = store.get(doc_id)
-        # Existence-leak-safe: 404 for absent OR unreadable (error-taxonomy).
         if d is None or not authority.can_read(principal, d):
-            raise HTTPException(status_code=404)
+            raise HTTPException(status_code=404)  # existence-leak-safe
         return {"id": d.id, "title": d.title, "space": d.space, "body": d.body}
 
     if doc_writer is not None:
@@ -127,24 +151,13 @@ def create_app(
             base_rev: str | None = Body(default=None, embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
-            try:
-                return doc_writer.write(path, content, principal, base_rev)
-            except (InvalidFrontmatter, WrongKind):
-                raise HTTPException(status_code=422, detail="invalid document")
-            except DocForbidden:
-                raise HTTPException(status_code=403)
-            except MRRequired:
-                raise HTTPException(status_code=409, detail="MR required (governed path)")
-            except DuplicateId:
-                raise HTTPException(status_code=409, detail="id already in use")
-            except Conflict:
-                raise HTTPException(status_code=409, detail="stale base revision")
+            return doc_writer.write(path, content, principal, base_rev)
 
     if ticket_store is not None and ticket_authority is not None:
+        service = TicketService(ticket_store, ticket_authority)
 
         @app.get("/tickets")
         def list_tickets(principal: str = Depends(get_principal)) -> list[dict]:
-            # INV-AGG/ACC: relations ∪ desk membership ∪ community_visible.
             tickets = ticket_store.all()
             readable = ticket_authority.readable_tickets(principal, tickets)
             return [{"id": t.id, "requester": t.requester} for t in tickets if t.id in readable]
@@ -156,8 +169,6 @@ def create_app(
                 raise HTTPException(status_code=404)
             return {"id": t.id, "requester": t.requester, "status": t.status,
                     "community_visible": t.community_visible}
-
-        service = TicketService(ticket_store, ticket_authority)
 
         @app.post("/tickets")
         def create_ticket(
@@ -175,26 +186,12 @@ def create_app(
             status: str = Body(..., embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
-            try:
-                t = service.transition(ticket_id, status, principal)
-            except TicketNotFound:
-                raise HTTPException(status_code=404)
-            except Forbidden:
-                raise HTTPException(status_code=403)
-            except IllegalTransition:
-                raise HTTPException(status_code=409, detail="illegal transition")
+            t = service.transition(ticket_id, status, principal)
             return {"id": t.id, "status": t.status, "community_visible": t.community_visible}
 
         @app.post("/tickets/{ticket_id}/community-visible")
         def promote(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
-            try:
-                t = service.promote_community_visible(ticket_id, principal)
-            except TicketNotFound:
-                raise HTTPException(status_code=404)
-            except Forbidden:
-                raise HTTPException(status_code=403)
-            except NotPromotable:
-                raise HTTPException(status_code=409, detail="only resolved tickets")
+            t = service.promote_community_visible(ticket_id, principal)
             return {"id": t.id, "community_visible": t.community_visible}
 
     return app
