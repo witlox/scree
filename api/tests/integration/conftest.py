@@ -55,3 +55,38 @@ def repo(tmp_path: Path) -> Path:
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-qm", "seed")
     return tmp_path
+
+
+# A Space as a folder tree: nested docs + a per-folder upload (attachment).
+ONBOARDING = """---
+id: doc-onboarding
+kind: doc
+schema_version: 1
+title: Onboarding
+space: platform/handbook
+---
+See diagram.
+"""
+
+DEEP = """---
+id: doc-deep
+kind: doc
+schema_version: 1
+title: Deep
+space: platform/handbook
+---
+Nested page.
+"""
+
+
+@pytest.fixture
+def tree_repo(tmp_path: Path) -> Path:
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "spike@scree.test")
+    _git(tmp_path, "config", "user.name", "spike")
+    _write(tmp_path, "onboarding/index.md", ONBOARDING)
+    _write(tmp_path, "onboarding/diagram.png", "PNGDATA")  # per-folder upload
+    _write(tmp_path, "onboarding/sub/deep.md", DEEP)  # nested page (hierarchy)
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "seed tree")
+    return tmp_path

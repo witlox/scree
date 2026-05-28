@@ -11,3 +11,4 @@ class Doc:
     body: str
     created: str | None = None  # derived from Git history (INV-ST-5)
     updated: str | None = None
+    path: str | None = None  # location within the Space; folder path = page hierarchy
