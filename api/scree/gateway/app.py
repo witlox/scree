@@ -21,7 +21,7 @@ from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.git_store import GitWriteError
 from scree.knowledge.store import DocStore
-from scree.indexing.orphans import detect_orphans
+from scree.indexing.orphans import OrphanCache, detect_orphans
 from scree.planning.authority import PlanningAuthority
 from scree.planning.index import PlanningIndex
 from scree.planning.rollup import portfolio
@@ -101,6 +101,7 @@ def create_app(
     quarantine_store: QuarantineStore | None = None,
     compliance_principals: set[str] | None = None,
     service_principals: set[str] | None = None,
+    archived_spaces: set[str] | None = None,
     slack_directory: SlackDirectory | None = None,
     slack_rate_limiter: CaptureRateLimiter | None = None,
     planning_index: PlanningIndex | None = None,
@@ -126,6 +127,12 @@ def create_app(
         raise ValueError("planning requires both planning_index and planning_authority")
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
+
+    # Dedicated ingestion/batch service principals (G6-02), archived Spaces, and the
+    # batch-computed orphan report cache (G7-03) — shared across endpoints.
+    services = service_principals or set()
+    archived = archived_spaces or set()
+    orphan_cache = OrphanCache()
 
     for exc_type, status in _ERROR_STATUS.items():
         app.add_exception_handler(exc_type, _make_handler(status))
@@ -199,20 +206,33 @@ def create_app(
             readable = authority.readable_spaces(principal)  # INV-AGG over risks
             return [_risk_view(r) for r in risk_store.all() if r.space in readable]
 
-    @app.get("/orphans")
-    def orphans(principal: str = Depends(get_principal)) -> dict:
-        # INV-ORPH: surface active resources whose owner lost Space access (to that
-        # Space's maintainers) and open tickets needing triage (to desk leads).
-        # Never auto-reassigned; the report is filtered to the requester's scope.
+    @app.post("/orphans/refresh")
+    def refresh_orphans(principal: str = Depends(get_principal)) -> dict:
+        # G7-03: the "hourly batch" / manual trigger. A service principal recomputes
+        # the report once into the cache; reads then don't re-resolve every owner.
+        if principal not in services:
+            raise HTTPException(status_code=403, detail="orphan refresh is service-principal only")
         risks_list = risk_store.all() if risk_store is not None else []
         can_tickets = ticket_store is not None and ticket_authority is not None
         tickets_list = ticket_store.all() if can_tickets else []
-        report = detect_orphans(risks_list, tickets_list,
-                                authority=authority, ticket_authority=ticket_authority)
-        resources = {sp: ids for sp, ids in report.resources.items()
-                     if authority.can_write(principal, sp)}  # maintainer of that Space
-        tickets = report.tickets if (can_tickets and ticket_authority.is_agent(principal)) else []
-        return {"resources": resources, "tickets": tickets}
+        report = detect_orphans(
+            risks_list, tickets_list, authority=authority,
+            ticket_authority=ticket_authority, archived_spaces=archived,
+        )
+        orphan_cache.report = report
+        return {"refreshed": True, "as_of": report.as_of}
+
+    @app.get("/orphans")
+    def orphans(principal: str = Depends(get_principal)) -> dict:
+        # INV-ORPH: serve the batch-computed report, filtered to the requester's
+        # scope — resources to the Space's maintainers, tickets to the desk's leads
+        # (both = can_write, G7-02). Never auto-reassigned.
+        report = orphan_cache.report
+        if report is None:
+            return {"resources": {}, "tickets": {}, "as_of": None, "computed": False}
+        resources = {sp: ids for sp, ids in report.resources.items() if authority.can_write(principal, sp)}
+        tickets = {sp: ids for sp, ids in report.tickets.items() if authority.can_write(principal, sp)}
+        return {"resources": resources, "tickets": tickets, "as_of": report.as_of, "computed": True}
 
     if planning_index is not None and planning_authority is not None:
 
@@ -267,9 +287,6 @@ def create_app(
         identity = identity_directory or IdentityDirectory()
         quarantine = quarantine_store or QuarantineStore()
         compliance = compliance_principals or set()  # fail-closed: no one erases unless configured
-        # G6-02: ingestion (Slack bot / email poller) runs as a dedicated service
-        # principal, distinct from human agents; fail-closed if unconfigured.
-        services = service_principals or set()
         slack_dir = slack_directory or SlackDirectory()
         slack_limiter = slack_rate_limiter or CaptureRateLimiter()
         receipts = ErasureReceiptStore()
