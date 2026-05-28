@@ -17,3 +17,6 @@ class TicketAuthority:
 
     def can_read(self, principal: str, ticket_id: str) -> bool:
         return principal in self._agents or self._relations.can_read(principal, ticket_id)
+
+    def is_agent(self, principal: str) -> bool:
+        return principal in self._agents

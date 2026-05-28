@@ -12,3 +12,6 @@ class TicketStore:
 
     def all(self) -> list[Ticket]:
         return list(self._tickets.values())
+
+    def put(self, ticket: Ticket) -> None:
+        self._tickets[ticket.id] = ticket

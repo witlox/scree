@@ -1,8 +1,15 @@
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Body, FastAPI, Header, HTTPException
 
 from scree.access.authority import Authority
 from scree.access.ticket_authority import TicketAuthority
 from scree.knowledge.store import DocStore
+from scree.servicedesk.lifecycle import IllegalTransition
+from scree.servicedesk.service import (
+    Forbidden,
+    NotPromotable,
+    TicketNotFound,
+    TicketService,
+)
 from scree.servicedesk.store import TicketStore
 
 
@@ -53,6 +60,37 @@ def create_app(
             t = ticket_store.get(ticket_id)
             if t is None or not ticket_authority.can_read(x_spike_user, ticket_id):
                 raise HTTPException(status_code=404)
-            return {"id": t.id, "requester": t.requester}
+            return {"id": t.id, "requester": t.requester, "status": t.status,
+                    "community_visible": t.community_visible}
+
+        service = TicketService(ticket_store, ticket_authority)
+
+        @app.patch("/tickets/{ticket_id}")
+        def transition_ticket(
+            ticket_id: str,
+            status: str = Body(..., embed=True),
+            x_spike_user: str = Header(...),
+        ) -> dict:
+            try:
+                t = service.transition(ticket_id, status, x_spike_user)
+            except TicketNotFound:
+                raise HTTPException(status_code=404)
+            except Forbidden:
+                raise HTTPException(status_code=403)
+            except IllegalTransition:
+                raise HTTPException(status_code=409, detail="illegal transition")
+            return {"id": t.id, "status": t.status, "community_visible": t.community_visible}
+
+        @app.post("/tickets/{ticket_id}/community-visible")
+        def promote(ticket_id: str, x_spike_user: str = Header(...)) -> dict:
+            try:
+                t = service.promote_community_visible(ticket_id, x_spike_user)
+            except TicketNotFound:
+                raise HTTPException(status_code=404)
+            except Forbidden:
+                raise HTTPException(status_code=403)
+            except NotPromotable:
+                raise HTTPException(status_code=409, detail="only resolved tickets")
+            return {"id": t.id, "community_visible": t.community_visible}
 
     return app
