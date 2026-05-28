@@ -61,7 +61,7 @@ Adversarial pass over merged code (PRs #33–#44).
 |---|---|---|---|
 | I-01 | **High** | Customer can't read the ticket they just created (no requester tuple) | this round |
 | I-02 | **High** | `community_visible` grants no read access (INV-ACC-3 unenforced) | this round |
-| I-03 | **High** | Identity is an untrusted header; real authz not wired into Gateway | ✅ core: OIDC bearer auth wired (verified JWT → principal; plaintext header ignored when auth on). Follow-ups: make authenticator mandatory in prod, Keycloak JWKS `@contract`, RFC 8693 token exchange + wire RealOpenFga/GitLabAuthority into default app |
+| I-03 | **High** | Identity is an untrusted header; real authz not wired into Gateway | ✅ core: OIDC bearer auth wired (verified JWT → principal; plaintext header ignored when auth on). Keycloak JWKS `@contract` landed (#50, real realm/client/user → live JWKS verification + Gateway bearer path). Remaining follow-ups beyond gate-1: make authenticator mandatory in prod, RFC 8693 token exchange + wire RealOpenFga/GitLabAuthority into default app |
 | I-04 | Medium | Re-writing identical doc content crashes (500) | this round |
 | I-05 | Medium | Malformed frontmatter → 500 instead of 422 | this round |
 | I-06 | Medium | Doc write: no id allocation / uniqueness / kind check (INV-ST-4) | ✅ resolved | #47 (kind check + id uniqueness in DocService) |
