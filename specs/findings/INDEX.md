@@ -145,3 +145,16 @@ Adversarial pass over the Slack capture slice (PR #60). Primary target: Slack id
 | G6-03 | Low | Robustness | Rate limiter per-process, unbounded, counts attempts not captures | ✅ #61 (count successes; evict stale; shared-state documented) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
+
+## Implementation Gate 7 (2026-05-28) — `impl-gate-7.md`
+
+Adversarial pass over the orphan-detection slice (PR #62). Primary target: INV-ORPH completeness + report scoping.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G7-01 | Medium | Correctness | Space-archived orphaning unimplemented (INV-ORPH-1 partial) | ✅ #63 (archived_spaces flags active resources/tickets) |
+| G7-02 | Medium | Security/aggregation | Orphaned-ticket report not desk-scoped (all agents see all) | ✅ #63 (tickets grouped by desk; filtered by can_write) |
+| G7-03 | Medium | Robustness | Recomputed per GET, not batch-cached (perf/DoS + semantic drift) | ✅ #63 (OrphanCache + POST /orphans/refresh batch + as_of) |
+| G7-04 | Low | Correctness | Owner-access proxy uses read, misses lost-write-only owners | ✅ #63 (can_write proxy) |
+
+**Counts:** 3 medium · 1 low — **4 total, all resolved.** No `gate:blocking`.
