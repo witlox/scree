@@ -80,3 +80,11 @@ Write to `specs/escalations/` and continue with other scenarios.
 
 End: scenarios passing/total, escalations filed, remaining scenarios planned,
 test-suite results.
+
+## GitHub artifacts
+
+- One **PR per feature/slice** with `Closes #<feature-issue>`; the PR template
+  is the Definition of Done checklist.
+- Decompose a feature into **sub-issues** per scenario where useful.
+- File **`escalation`** issues (not inline TODOs) for blockers.
+- CI runs the `@api` / `@e2e` / `@contract` BDD tiers as required checks.

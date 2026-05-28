@@ -1,0 +1,44 @@
+name: Open question
+description: A question to resolve or escalate (OQ-*)
+title: "[OQ] "
+labels: ["open-question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: State it precisely.
+    validations:
+      required: true
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Considerations
+      description: Trade-offs, conflicting requirements, what's at stake.
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner
+      description: Who resolves this? (Head of Engineering items also get the needs:ratification label.)
+      options:
+        - Analyst
+        - Architect
+        - Head of Engineering
+        - Deferred (post-v1)
+    validations:
+      required: true
+  - type: dropdown
+    id: context
+    attributes:
+      label: Bounded context
+      options:
+        - knowledge
+        - service-desk
+        - risk
+        - planning
+        - access
+        - indexing
+        - integration
+        - migration
+        - gateway
+        - cross-cutting

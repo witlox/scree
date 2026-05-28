@@ -86,3 +86,11 @@ remaining points, readiness recommendation.
 Report integration findings. File escalations for module changes. Test
 failure modes across boundaries. Verify concurrent writers don't corrupt
 Git-backed resources or the index.
+
+## GitHub artifacts
+
+- One **`type:bug`** issue per integration gap (labels `phase:integrator`,
+  `context:integration`).
+- Integration-test **PRs**.
+- A **tag/release** marking readiness; track pre-cutover gates under the
+  **"v1 cutover"** milestone.

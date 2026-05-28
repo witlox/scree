@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Design decisions & conversation
+    url: https://github.com/witlox/scree/tree/main/docs/analysis
+    about: Background reasoning, the design-decisions ledger, and prior art — read before filing.
+  - name: Open questions ledger
+    url: https://github.com/witlox/scree/blob/main/docs/analysis/open-questions.md
+    about: Check whether your question is already tracked.
+  - name: Architecture Decision Records
+    url: https://github.com/witlox/scree/tree/main/docs/decisions
+    about: Ratified technology and scope decisions.

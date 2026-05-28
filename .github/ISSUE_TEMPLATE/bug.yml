@@ -1,0 +1,74 @@
+name: Bug / Finding
+description: A defect, or an adversary / audit / integration finding
+title: "[bug] "
+labels: ["type:bug"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Correctness
+        - Security
+        - Robustness
+    validations:
+      required: true
+  - type: input
+    id: vector
+    attributes:
+      label: Specific vector
+      description: e.g. "Security > aggregation permission leak", "Correctness > illegal state transition".
+  - type: dropdown
+    id: context
+    attributes:
+      label: Bounded context
+      options:
+        - knowledge
+        - service-desk
+        - risk
+        - planning
+        - access
+        - indexing
+        - integration
+        - migration
+        - gateway
+  - type: input
+    id: location
+    attributes:
+      label: Location
+      description: File / artifact path and line.
+  - type: input
+    id: spec-ref
+    attributes:
+      label: Spec reference
+      description: Which spec artifact or invariant — or "none — missing spec".
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Concrete example, exploit scenario, or reproduction steps.
+    validations:
+      required: true
+  - type: textarea
+    id: resolution
+    attributes:
+      label: Suggested resolution
+      description: Minimal and advisory — the architect/implementer decides the fix.

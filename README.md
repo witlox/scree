@@ -65,7 +65,7 @@ See `CLAUDE.md` for the full list. Briefly:
 
 ## License
 
-[To be determined]
+[GNU AGPL-3.0](LICENSE). Network-copyleft: anyone who runs a modified Scree as a service must publish their changes — chosen deliberately to resist the lock-in dynamics the project exists to escape.
 
 ## Related projects
 

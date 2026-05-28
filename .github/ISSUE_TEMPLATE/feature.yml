@@ -1,0 +1,43 @@
+name: Feature
+description: A capability to build (typically one Gherkin .feature)
+title: "[feature] "
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: capability
+    attributes:
+      label: Capability
+      description: What this feature does, in domain terms.
+    validations:
+      required: true
+  - type: dropdown
+    id: context
+    attributes:
+      label: Bounded context
+      options:
+        - knowledge
+        - service-desk
+        - risk
+        - planning
+        - access
+        - indexing
+        - integration
+        - migration
+        - gateway
+    validations:
+      required: true
+  - type: input
+    id: feature-file
+    attributes:
+      label: Spec reference
+      description: Path to the specs/features/*.feature file (or "to be written").
+  - type: textarea
+    id: scenarios
+    attributes:
+      label: Scenarios
+      description: Gherkin scenarios with concrete values, and binding tags (@api / @e2e / @contract).
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Invariants touched
+      description: Numbered invariant IDs this feature must enforce (call out the aggregation permission invariant if relevant).

@@ -98,3 +98,10 @@ Produce architecture specs. Reference analyst specs by filename. Escalate
 spec gaps to analyst via `specs/escalations/`. Prefer simplicity over
 flexibility — this serves ~150 internal and ~2-3k external users, not
 hyperscale.
+
+## GitHub artifacts
+
+- **PRs** adding `specs/architecture/*` and `docs/decisions/*`.
+- An **`adr`** issue per significant decision, closed when its ADR PR merges.
+- An **`escalation`** issue (label `needs:analyst`) for each spec gap sent back.
+- Track completion under the **"Architect graduation"** milestone.

@@ -101,3 +101,13 @@ Produce specifications. Escalate architecture/technology questions to the
 architect (e.g. authz-engine and editor-library choice). Write concrete
 Gherkin with specific values. Flag when a feature requires capabilities not
 yet specified.
+
+## GitHub artifacts
+
+- One **`type:feature`** issue per `.feature` (labels `phase:analyst`,
+  `context:*`).
+- One **`open-question`** issue per OQ; set owner (Analyst / Architect / HoE /
+  Deferred). Head-of-Engineering items also get **`needs:ratification`**.
+- Track the SEED §9 checklist under the **"Analyst graduation"** milestone.
+- Invariants stay numbered in `specs/invariants.md` and are referenced by ID,
+  not turned into issues.

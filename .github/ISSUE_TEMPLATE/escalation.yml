@@ -1,0 +1,42 @@
+name: Escalation
+description: Spec gap, architecture conflict, or invariant ambiguity raised mid-phase
+title: "[escalation] "
+labels: ["escalation"]
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Type
+      options:
+        - Spec Gap
+        - Architecture Conflict
+        - Invariant Ambiguity
+    validations:
+      required: true
+  - type: input
+    id: feature
+    attributes:
+      label: Feature / area
+      description: What were you working on when this surfaced?
+  - type: textarea
+    id: need
+    attributes:
+      label: What I need
+      description: The specific thing required to proceed.
+    validations:
+      required: true
+  - type: input
+    id: blocking
+    attributes:
+      label: What's blocking
+      description: Which artifact is incomplete or contradictory.
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed resolution
+      description: If you have one.
+  - type: input
+    id: impact
+    attributes:
+      label: Impact
+      description: Can you continue with other scenarios in the meantime?

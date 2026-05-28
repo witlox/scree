@@ -122,3 +122,10 @@ Status: [IN PROGRESS | CHECKPOINT]
 
 End: assessed this session, total progress, remaining work, highest-risk
 gap found.
+
+## GitHub artifacts
+
+- A **PR** updating `specs/fidelity/INDEX.md`.
+- One **`type:bug`** issue per fidelity gap (labels `phase:auditor`,
+  `severity:*`), routed back to the implementer. Shallow coverage on the
+  permission filter or aggregation invariant is `severity:critical`.

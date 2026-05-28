@@ -121,3 +121,11 @@ specs/findings/
 
 End: findings sorted by severity, summary counts, highest-risk area,
 recommendation on what blocks the next phase.
+
+## GitHub artifacts
+
+- File one **`type:bug`** issue per finding using the Bug form (severity /
+  category / location / spec-ref / evidence / resolution). Add `phase:adversary`
+  and `context:*`.
+- `severity:critical` and `severity:high` findings also get **`gate:blocking`**
+  — they block the relevant milestone until resolved.

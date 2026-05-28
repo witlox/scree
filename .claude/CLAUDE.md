@@ -63,3 +63,12 @@ Git substrate, BDD via pytest-bdd. CI on GitHub Actions; deployment target is
 the GitLab self-managed environment. Open architect-phase choices (authz
 engine, editor library, deployment topology) are tracked in
 `docs/analysis/open-questions.md`.
+
+## Work tracking (GitHub)
+
+GitHub tracks the **building** of Scree; GitLab is where Scree's runtime data
+lives. Each role emits GitHub artifacts (see the "GitHub artifacts" section in
+its profile): `type:feature` / `type:bug` issues, `open-question`/`escalation`/
+`adr` issues, PRs, and the "Analyst graduation" / "Architect graduation" /
+"v1 cutover" milestones. Issue forms and the PR template live in `.github/`.
+Labels: `phase:*`, `severity:*`, `context:*`, `gate:blocking`, `needs:*`.
