@@ -19,3 +19,4 @@ class Ticket:
     origin: Origin = "api"
     email_token: str | None = None  # low-trust threading candidate (INV-EMAIL-1)
     email_message_id: str | None = None  # RFC Message-ID for header threading
+    captured_by: str | None = None  # Slack capturer, recorded separately (INV-SLACK-1)
