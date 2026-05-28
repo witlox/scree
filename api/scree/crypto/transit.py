@@ -79,8 +79,12 @@ class VaultTransitCrypto:
         resp = self._client.post(
             f"{self._base}/v1/transit/decrypt/{name}", headers=self._h, json={"ciphertext": ciphertext}
         )
-        if resp.status_code >= 400:
-            raise DecryptionUnavailable(requester)  # key deleted (shredded) or bad input
+        # G8-02: 4xx = key missing (crypto-shredded) or bad ciphertext → permanently
+        # unrecoverable. 5xx/transport = transient → let it propagate (retryable), so
+        # an outage is never mis-reported as a permanent erasure.
+        if 400 <= resp.status_code < 500:
+            raise DecryptionUnavailable(requester)
+        resp.raise_for_status()
         return base64.b64decode(resp.json()["data"]["plaintext"]).decode()
 
     def destroy(self, requester: str) -> None:

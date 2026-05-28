@@ -65,6 +65,12 @@ class TicketTransitionIn(BaseModel):
     status: str
 
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
+MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
+
+
+def _check_comment_size(text: str | None) -> None:
+    if text is not None and len(text.encode("utf-8")) > MAX_COMMENT_BYTES:
+        raise HTTPException(status_code=413, detail="comment body too large")
 
 # Central error taxonomy: domain exception -> HTTP status (error-taxonomy.md, I-10).
 _ERROR_STATUS: dict[type[Exception], int] = {
@@ -293,6 +299,14 @@ def create_app(
         compliance = compliance_principals or set()  # fail-closed: no one erases unless configured
         slack_dir = slack_directory or SlackDirectory()
         slack_limiter = slack_rate_limiter or CaptureRateLimiter()
+        # G8-01: durable per-requester crypto (Vault Transit) is required in prod;
+        # FernetCrypto's in-memory keys are lost on restart, so only allow it under
+        # the same dev/spike opt-in as header auth.
+        if ticket_crypto is None and not allow_insecure_header_auth:
+            raise ValueError(
+                "ticket_crypto (durable per-requester crypto, e.g. Vault Transit) is required; "
+                "FernetCrypto is in-memory and dev-only (allow_insecure_header_auth)."
+            )
         crypto = ticket_crypto or FernetCrypto()
         receipts = ErasureReceiptStore()
         service = TicketService(
@@ -343,6 +357,7 @@ def create_app(
             if requester and requester != principal and not ticket_authority.is_agent(principal):
                 raise HTTPException(status_code=403, detail="cannot create ticket for another requester")
             effective_requester = requester if (requester and ticket_authority.is_agent(principal)) else principal
+            _check_comment_size(body.body)  # G8-03
             t = service.create(body.origin, effective_requester, encrypted=body.encrypt)
             if body.body:  # initial description, encrypted at rest if the ticket is encrypted
                 service.add_comment(t.id, principal, body.body, "api")
@@ -414,6 +429,7 @@ def create_app(
             # agent/service principal; the user identities ride in the event.
             if principal not in services:
                 raise HTTPException(status_code=403, detail="slack capture is service-principal only")
+            _check_comment_size(snapshot)  # G8-03
             return service.capture_from_slack(reactor, author, snapshot, slack_dir=slack_dir, limiter=slack_limiter)
 
         @app.post("/slack/link-ticket")
@@ -425,6 +441,7 @@ def create_app(
         ) -> dict:
             if principal not in services:
                 raise HTTPException(status_code=403, detail="slack link is service-principal only")
+            _check_comment_size(snapshot)  # G8-03
             return service.link_from_slack(reactor, ticket_id, snapshot, slack_dir=slack_dir)
 
         @app.get("/identities/erasures")

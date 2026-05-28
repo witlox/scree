@@ -158,3 +158,15 @@ Adversarial pass over the orphan-detection slice (PR #62). Primary target: INV-O
 | G7-04 | Low | Correctness | Owner-access proxy uses read, misses lost-write-only owners | ✅ #63 (can_write proxy) |
 
 **Counts:** 3 medium · 1 low — **4 total, all resolved.** No `gate:blocking`.
+
+## Implementation Gate 8 (2026-05-28) — `impl-gate-8.md`
+
+Adversarial pass over the encryption-at-create / crypto-shred slice (PR #64). Primary target: crypto durability + shred correctness.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G8-01 | Medium | Robustness/durability | Ephemeral in-memory crypto is the default → silent unrecoverability without Vault | ✅ #65 (fail-closed: ticket_crypto required unless dev flag) |
+| G8-02 | Medium | Correctness | Decryption conflates transient failure with permanent crypto-shred | ✅ #65 (4xx=shredded, 5xx=retryable propagated) |
+| G8-03 | Low | Robustness/exhaustion | Comment/ticket body size unbounded | ✅ #65 (1MB cap → 413 on body/snapshot) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
