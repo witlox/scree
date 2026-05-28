@@ -27,6 +27,7 @@ from scree.planning.rollup import portfolio
 from scree.risk.models import Risk, RiskCategory, Strategy
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
+from scree.access.erasure import ErasureService
 from scree.access.identity import IdentityDirectory
 from scree.integration.o365.inbound import parse_inbound
 from scree.servicedesk.comments import CommentStore
@@ -96,6 +97,7 @@ def create_app(
     comment_store: CommentStore | None = None,
     identity_directory: IdentityDirectory | None = None,
     quarantine_store: QuarantineStore | None = None,
+    compliance_principals: set[str] | None = None,
     planning_index: PlanningIndex | None = None,
     planning_authority: PlanningAuthority | None = None,
     audit: AuditSink | None = None,
@@ -244,10 +246,12 @@ def create_app(
     if ticket_store is not None and ticket_authority is not None:
         identity = identity_directory or IdentityDirectory()
         quarantine = quarantine_store or QuarantineStore()
+        compliance = compliance_principals or set()  # fail-closed: no one erases unless configured
         service = TicketService(
             ticket_store, ticket_authority, comment_store=comment_store,
             identity=identity, quarantine=quarantine,
         )
+        erasure = ErasureService(identity, ticket_authority)
 
         def _requester_for(t, principal: str) -> str | None:
             # G2-06: only agents/the requester/related parties see who filed it;
@@ -325,5 +329,13 @@ def create_app(
             if len(raw.encode("utf-8")) > MAX_INBOUND_EMAIL_BYTES:  # G4-06
                 raise HTTPException(status_code=413, detail="inbound email too large")
             return service.ingest_email(parse_inbound(raw), verified=verified, sender=sender)
+
+        @app.delete("/identities/{opaque_id}")
+        def erase_identity(opaque_id: str, principal: str = Depends(get_principal)) -> dict:
+            # GDPR erasure (INV-DP-2): compliance/DPO role only. Anonymizes by
+            # deleting the identity record + purging OpenFGA tuples; Git untouched.
+            if principal not in compliance:
+                raise HTTPException(status_code=403, detail="erasure is compliance-only")
+            return erasure.erase(opaque_id)
 
     return app

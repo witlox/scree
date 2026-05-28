@@ -11,6 +11,8 @@ import pytest
 pytest.importorskip("testcontainers.core.container")
 from testcontainers.core.container import DockerContainer  # noqa: E402
 
+from scree.access.openfga import RealOpenFga  # noqa: E402
+
 pytestmark = pytest.mark.contract
 
 MODEL = {
@@ -111,3 +113,28 @@ def test_listobjects_and_check_enforce_ticket_viewer(openfga_url):
 
         assert allowed("ticket:1") is True
         assert allowed("ticket:3") is False
+
+
+def test_real_purge_user_erases_subject_tuples(openfga_url):
+    # AR-05 on the REAL engine: RealOpenFga.purge_user removes the subject's
+    # tuples (read+delete), leaving other users untouched.
+    with httpx.Client(base_url=openfga_url, timeout=15) as cli:
+        store_id = cli.post("/stores", json={"name": "scree-purge"}).json()["id"]
+        model_id = cli.post(
+            f"/stores/{store_id}/authorization-models", json=MODEL
+        ).json()["authorization_model_id"]
+        cli.post(
+            f"/stores/{store_id}/write",
+            json={"authorization_model_id": model_id, "writes": {"tuple_keys": [
+                {"user": "user:okafor", "relation": "requester", "object": "ticket:1"},
+                {"user": "user:okafor", "relation": "watcher", "object": "ticket:2"},
+                {"user": "user:lind", "relation": "requester", "object": "ticket:3"},
+            ]}},
+        ).raise_for_status()
+
+    fga = RealOpenFga(openfga_url, store_id, model_id)
+    assert fga.list_readable("okafor") == {"1", "2"}  # strip_type("ticket:1") -> "1"
+
+    assert fga.purge_user("okafor") == 2
+    assert fga.list_readable("okafor") == set()
+    assert fga.list_readable("lind") == {"3"}  # other subjects untouched
