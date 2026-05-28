@@ -21,6 +21,7 @@ from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.git_store import GitWriteError
 from scree.knowledge.store import DocStore
+from scree.indexing.orphans import detect_orphans
 from scree.planning.authority import PlanningAuthority
 from scree.planning.index import PlanningIndex
 from scree.planning.rollup import portfolio
@@ -189,7 +190,7 @@ def create_app(
                 raise HTTPException(status_code=403)
             risk = Risk(id=f"risk-{uuid.uuid4().hex[:8]}", title=body.title, space=body.space,
                         category=body.category, likelihood=body.likelihood,
-                        impact=body.impact, strategy=body.strategy)
+                        impact=body.impact, strategy=body.strategy, owner=principal)
             risk_store.put(risk)
             return _risk_view(risk)
 
@@ -197,6 +198,21 @@ def create_app(
         def list_risks(principal: str = Depends(get_principal)) -> list[dict]:
             readable = authority.readable_spaces(principal)  # INV-AGG over risks
             return [_risk_view(r) for r in risk_store.all() if r.space in readable]
+
+    @app.get("/orphans")
+    def orphans(principal: str = Depends(get_principal)) -> dict:
+        # INV-ORPH: surface active resources whose owner lost Space access (to that
+        # Space's maintainers) and open tickets needing triage (to desk leads).
+        # Never auto-reassigned; the report is filtered to the requester's scope.
+        risks_list = risk_store.all() if risk_store is not None else []
+        can_tickets = ticket_store is not None and ticket_authority is not None
+        tickets_list = ticket_store.all() if can_tickets else []
+        report = detect_orphans(risks_list, tickets_list,
+                                authority=authority, ticket_authority=ticket_authority)
+        resources = {sp: ids for sp, ids in report.resources.items()
+                     if authority.can_write(principal, sp)}  # maintainer of that Space
+        tickets = report.tickets if (can_tickets and ticket_authority.is_agent(principal)) else []
+        return {"resources": resources, "tickets": tickets}
 
     if planning_index is not None and planning_authority is not None:
 

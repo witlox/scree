@@ -29,6 +29,7 @@ class Risk:
     strategy: Strategy
     status: RiskStatus = "open"
     escalated_from: str | None = None
+    owner: str | None = None  # accountable principal (orphan detection, INV-ORPH-1)
 
     @property
     def score(self) -> int:  # derived, never authored (F-12)
