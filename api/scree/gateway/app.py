@@ -6,6 +6,8 @@ from scree.knowledge.doc_service import DocService, MRRequired
 from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.store import DocStore
+from scree.risk.models import Risk
+from scree.risk.triggers import fires_critical_webhook
 from scree.servicedesk.lifecycle import IllegalTransition
 from scree.servicedesk.service import (
     Forbidden,
@@ -28,6 +30,24 @@ def create_app(
     (X-Spike-User) — real OIDC/token-exchange comes later."""
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
+
+    @app.post("/risks/assess")
+    def assess_risk(
+        category: str = Body(..., embed=True),
+        likelihood: int = Body(..., embed=True),
+        impact: int = Body(..., embed=True),
+    ) -> dict:
+        # Stateless preview of derived score/severity + whether it fires the
+        # critical webhook (INV-IX-1). Persistence reuses the doc-write path.
+        risk = Risk(
+            id="(preview)", title="", space="", category=category,
+            likelihood=likelihood, impact=impact, strategy="mitigated",
+        )
+        return {
+            "score": risk.score,
+            "severity": risk.severity,
+            "fires_critical_webhook": fires_critical_webhook(risk),
+        }
 
     @app.get("/docs")
     def list_docs(x_spike_user: str = Header(...)) -> list[dict]:
