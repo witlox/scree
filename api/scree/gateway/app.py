@@ -1,6 +1,7 @@
-from fastapi import Body, FastAPI, Header, HTTPException
+from fastapi import Body, Depends, FastAPI, Header, HTTPException
 
 from scree.access.authority import Authority
+from scree.access.oidc import AuthError, OidcAuthenticator
 from scree.access.ticket_authority import TicketAuthority
 from scree.knowledge.doc_service import DocService, MRRequired
 from scree.knowledge.doc_service import Forbidden as DocForbidden
@@ -25,11 +26,28 @@ def create_app(
     ticket_store: TicketStore | None = None,
     ticket_authority: TicketAuthority | None = None,
     doc_writer: DocService | None = None,
+    authenticator: OidcAuthenticator | None = None,
 ) -> FastAPI:
-    """The single enforcement point (spike). Identity is a stub header
-    (X-Spike-User) — real OIDC/token-exchange comes later."""
+    """The single enforcement point. Identity comes from a verified OIDC bearer
+    token (INV-ID-1) when an authenticator is configured; otherwise it falls back
+    to the X-Spike-User header (spike/dev only)."""
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
+
+    def get_principal(
+        authorization: str | None = Header(default=None),
+        x_spike_user: str | None = Header(default=None),
+    ) -> str:
+        if authenticator is not None:
+            if not authorization or not authorization.lower().startswith("bearer "):
+                raise HTTPException(status_code=401, detail="missing bearer token")
+            try:
+                return authenticator.principal(authorization.split(" ", 1)[1])
+            except AuthError:
+                raise HTTPException(status_code=401, detail="invalid token")
+        if x_spike_user:
+            return x_spike_user  # spike/dev fallback when no authenticator configured
+        raise HTTPException(status_code=401, detail="no identity")
 
     @app.post("/risks/assess")
     def assess_risk(
@@ -50,19 +68,19 @@ def create_app(
         }
 
     @app.get("/docs")
-    def list_docs(x_spike_user: str = Header(...)) -> list[dict]:
+    def list_docs(principal: str = Depends(get_principal)) -> list[dict]:
         # INV-AGG: filter EVERY item by the requester's authority, per request.
         return [
             {"id": d.id, "title": d.title, "space": d.space}
             for d in store.all()
-            if authority.can_read(x_spike_user, d)
+            if authority.can_read(principal, d)
         ]
 
     @app.get("/docs/{doc_id}")
-    def get_doc(doc_id: str, x_spike_user: str = Header(...)) -> dict:
+    def get_doc(doc_id: str, principal: str = Depends(get_principal)) -> dict:
         d = store.get(doc_id)
         # Existence-leak-safe: 404 for absent OR unreadable (error-taxonomy).
-        if d is None or not authority.can_read(x_spike_user, d):
+        if d is None or not authority.can_read(principal, d):
             raise HTTPException(status_code=404)
         return {"id": d.id, "title": d.title, "space": d.space, "body": d.body}
 
@@ -72,10 +90,10 @@ def create_app(
         def write_doc(
             path: str = Body(..., embed=True),
             content: str = Body(..., embed=True),
-            x_spike_user: str = Header(...),
+            principal: str = Depends(get_principal),
         ) -> dict:
             try:
-                return doc_writer.write(path, content, x_spike_user)
+                return doc_writer.write(path, content, principal)
             except InvalidFrontmatter:
                 raise HTTPException(status_code=422, detail="invalid frontmatter")
             except DocForbidden:
@@ -86,16 +104,16 @@ def create_app(
     if ticket_store is not None and ticket_authority is not None:
 
         @app.get("/tickets")
-        def list_tickets(x_spike_user: str = Header(...)) -> list[dict]:
+        def list_tickets(principal: str = Depends(get_principal)) -> list[dict]:
             # INV-AGG/ACC: relations ∪ desk membership ∪ community_visible.
             tickets = ticket_store.all()
-            readable = ticket_authority.readable_tickets(x_spike_user, tickets)
+            readable = ticket_authority.readable_tickets(principal, tickets)
             return [{"id": t.id, "requester": t.requester} for t in tickets if t.id in readable]
 
         @app.get("/tickets/{ticket_id}")
-        def get_ticket(ticket_id: str, x_spike_user: str = Header(...)) -> dict:
+        def get_ticket(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
             t = ticket_store.get(ticket_id)
-            if t is None or not ticket_authority.can_read(x_spike_user, t):
+            if t is None or not ticket_authority.can_read(principal, t):
                 raise HTTPException(status_code=404)
             return {"id": t.id, "requester": t.requester, "status": t.status,
                     "community_visible": t.community_visible}
@@ -106,7 +124,7 @@ def create_app(
         def create_ticket(
             origin: str = Body(..., embed=True),
             requester: str = Body(..., embed=True),
-            x_spike_user: str = Header(...),
+            principal: str = Depends(get_principal),
         ) -> dict:
             t = service.create(origin, requester)
             return {"id": t.id, "requester": t.requester, "origin": t.origin,
@@ -116,10 +134,10 @@ def create_app(
         def transition_ticket(
             ticket_id: str,
             status: str = Body(..., embed=True),
-            x_spike_user: str = Header(...),
+            principal: str = Depends(get_principal),
         ) -> dict:
             try:
-                t = service.transition(ticket_id, status, x_spike_user)
+                t = service.transition(ticket_id, status, principal)
             except TicketNotFound:
                 raise HTTPException(status_code=404)
             except Forbidden:
@@ -129,9 +147,9 @@ def create_app(
             return {"id": t.id, "status": t.status, "community_visible": t.community_visible}
 
         @app.post("/tickets/{ticket_id}/community-visible")
-        def promote(ticket_id: str, x_spike_user: str = Header(...)) -> dict:
+        def promote(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
             try:
-                t = service.promote_community_visible(ticket_id, x_spike_user)
+                t = service.promote_community_visible(ticket_id, principal)
             except TicketNotFound:
                 raise HTTPException(status_code=404)
             except Forbidden:
