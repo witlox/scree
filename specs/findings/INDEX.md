@@ -93,3 +93,15 @@ Adversarial pass over the merged custom layer after gate-1 + OIDC/Keycloak (PRs 
 | G2-11 | Low | Robustness/concurrency | Git `index.lock` races → 500 | ✅ #51 (per-repo write lock; GitWriteError→409) |
 
 **Counts:** 3 high · 5 medium · 3 low — **11 total, all resolved.** G2-01/02/03 were `gate:blocking`.
+
+## Implementation Gate 3 (2026-05-28) — `impl-gate-3.md`
+
+Adversarial pass over the planning slice (PR #54). Primary target: INV-AGG.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G3-01 | Medium | Security/INV-AGG | Stale index group-mapping leaks an epic across a group move | ✅ #55 (accepted bounded-staleness, disclosed via as_of/never_indexed; closes with real GitLab-group authority) |
+| G3-02 | Low | Robustness/exhaustion | Unbounded portfolio rollup (no pagination/bound) | ✅ #55 (cursor pagination, bounded limit; totals over all visible) |
+| G3-03 | Low | Robustness/degradation | Partial config silently 404s; never-indexed staleness served as bare null | ✅ #55 (fail-loud partial config; never_indexed signal) |
+
+**Counts:** 1 medium · 2 low — **3 total, all resolved.** No `gate:blocking` (no critical/high).

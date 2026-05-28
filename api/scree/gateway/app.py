@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -104,6 +104,10 @@ def create_app(
             "create_app requires an authenticator; pass allow_insecure_header_auth=True "
             "only for dev/spike (trusts the X-Spike-User header)."
         )
+    # G3-03: planning needs both an index and an authority — refuse partial config
+    # rather than silently 404-ing the route.
+    if (planning_index is None) != (planning_authority is None):
+        raise ValueError("planning requires both planning_index and planning_authority")
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -182,14 +186,26 @@ def create_app(
     if planning_index is not None and planning_authority is not None:
 
         @app.get("/planning/portfolio")
-        def portfolio_rollup(principal: str = Depends(get_principal)) -> dict:
+        def portfolio_rollup(
+            principal: str = Depends(get_principal),
+            limit: int = Query(default=100, ge=1, le=500),  # G3-02: bound the page
+            cursor: int = Query(default=0, ge=0),
+        ) -> dict:
             # AR-08: resolve the readable groups ONCE, then filter every candidate.
             readable = planning_authority.readable_groups(principal)
             # INV-AGG: drop epics the viewer can't see entirely — no count/title/
             # capacity leak (indexer-design step 4); totals derive from visible only.
+            #
+            # G3-01 (accepted, bounded): an epic's group is taken from the index
+            # (as of the last refresh), not live GitLab, so a group MOVE opens a
+            # visibility-staleness window until reindex. It is disclosed via
+            # as_of/never_indexed and closes when the real GitLab-group authority
+            # replaces this stub (PR #54 follow-up); see impl-gate-3.md G3-01.
             visible = [e for e in planning_index.candidates() if e.group in readable]
-            result = portfolio(visible)
-            result["as_of"] = planning_index.as_of()  # staleness marker (INV-IX-2)
+            result = portfolio(visible, limit=limit, cursor=cursor)
+            as_of = planning_index.as_of()
+            result["as_of"] = as_of  # staleness marker (INV-IX-2)
+            result["never_indexed"] = as_of is None  # G3-03: explicit unknown-staleness signal
             return result
 
     @app.get("/docs")
