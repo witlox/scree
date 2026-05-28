@@ -64,10 +64,12 @@ Adversarial pass over merged code (PRs #33–#44).
 | I-03 | **High** | Identity is an untrusted header; real authz not wired into Gateway | ✅ core: OIDC bearer auth wired (verified JWT → principal; plaintext header ignored when auth on). Follow-ups: make authenticator mandatory in prod, Keycloak JWKS `@contract`, RFC 8693 token exchange + wire RealOpenFga/GitLabAuthority into default app |
 | I-04 | Medium | Re-writing identical doc content crashes (500) | this round |
 | I-05 | Medium | Malformed frontmatter → 500 instead of 422 | this round |
-| I-06 | Medium | Doc write: no id allocation / uniqueness / kind check (INV-ST-4) | later round |
-| I-07 | Medium | Doc write: no optimistic concurrency (INV-ST-6) | later round |
-| I-08 | Medium | No audit anywhere (INV-ID-3) | later round |
-| I-09 | Medium | Risk register hollow (predicate not wired; no persistence) | later round |
-| I-10 | Low | Per-endpoint error handling, not the central handler | later round |
+| I-06 | Medium | Doc write: no id allocation / uniqueness / kind check (INV-ST-4) | ✅ resolved | #47 (kind check + id uniqueness in DocService) |
+| I-07 | Medium | Doc write: no optimistic concurrency (INV-ST-6) | ✅ resolved | #47 (base_rev vs rev → Conflict) |
+| I-08 | Medium | No audit anywhere (INV-ID-3) | ✅ resolved | #49 (AuditSink + Gateway audit middleware, principal recorded) |
+| I-09 | Medium | Risk register hollow (predicate not wired; no persistence) | ✅ resolved | #48 (RiskStore + critical-webhook trigger wired) |
+| I-10 | Low | Per-endpoint error handling, not the central handler | ✅ resolved | #49 (central FastAPI exception handlers from error taxonomy) |
 
-**Counts:** 3 high · 6 medium · 1 low — 10 total. Fixing I-01/02/04/05 this round.
+**Counts:** 3 high · 6 medium · 1 low — **10 total, all resolved.** I-03 core
+landed; its prod-hardening follow-ups (mandatory authenticator, Keycloak JWKS
+`@contract`, RFC 8693) are tracked beyond gate-1.
