@@ -1,79 +1,119 @@
 """@api — inbound email ingestion at the Gateway (POST /tickets/inbound-email):
-agent-only, threads on header/token, quarantines spoofed senders (INV-EMAIL-1),
-opens a new requester-private ticket when nothing matches."""
+agent-only, out-of-band verdict (G4-01), verified-before-attribution (G4-02),
+opaque requester (G4-03), numeric-token threading (G4-04), quarantine persistence
+(G4-05), size cap (G4-06)."""
 
 from fastapi.testclient import TestClient
 
 from scree.access.authority import Authority
+from scree.access.identity import IdentityDirectory
 from scree.access.openfga import FakeOpenFga
 from scree.access.ticket_authority import TicketAuthority
 from scree.gateway.app import create_app
 from scree.knowledge.store import DocStore
 from scree.servicedesk.comments import CommentStore
-from scree.servicedesk.models import Ticket
+from scree.servicedesk.quarantine import QuarantineStore
 from scree.servicedesk.store import TicketStore
 
-MID = "<CA+abc123@mail.uni.example.ac>"
-REQ = "ext:r.okafor@uni.example.ac"
+SENDER = "r.okafor@uni.example.ac"
 
 
 def _ctx():
-    store = TicketStore([Ticket(
-        id="ticket-123", requester=REQ, status="open",
-        email_message_id=MID, email_token="SCREE-123",
-    )])
+    store = TicketStore()
     comments = CommentStore()
+    identity = IdentityDirectory()
+    quarantine = QuarantineStore()
     authority = TicketAuthority(FakeOpenFga(), agents={"agent:dani"})
     app = create_app(
         DocStore([]), Authority({}),
         ticket_store=store, ticket_authority=authority, comment_store=comments,
+        identity_directory=identity, quarantine_store=quarantine,
         allow_insecure_header_auth=True,
     )
-    return TestClient(app), store, comments
+    return TestClient(app), store, comments, identity, quarantine
 
 
-def _raw(frm, subject, references="", verified=True):
-    headers = [f"From: {frm}", f"Subject: {subject}"]
+def _raw(frm, subject, references="", forged_auth=False):
+    headers = [f"From: {frm}", f"Subject: {subject}", "Message-ID: <m1@x>"]
     if references:
         headers.append(f"References: {references}")
-    if verified:
-        headers.append("Authentication-Results: mx.scree; dmarc=pass")
+    if forged_auth:
+        headers.append("Authentication-Results: mx.scree; dmarc=pass")  # attacker-forged
     return "\n".join(headers) + "\n\nthe message body\n"
 
 
-def _post(client, raw, who="agent:dani"):
-    return client.post("/tickets/inbound-email", json={"raw": raw}, headers={"X-Spike-User": who})
+def _post(client, raw, *, verified=False, sender=None, who="agent:dani"):
+    body = {"raw": raw, "verified": verified, "sender": sender}
+    return client.post("/tickets/inbound-email", json=body, headers={"X-Spike-User": who})
 
 
 def test_inbound_email_is_agent_only():
-    client, _, _ = _ctx()
-    r = _post(client, _raw("r.okafor@uni.example.ac", "hi"), who="cust-okafor")
-    assert r.status_code == 403
+    client, *_ = _ctx()
+    assert _post(client, _raw(SENDER, "hi"), verified=True, sender=SENDER, who="cust").status_code == 403
 
 
-def test_header_reply_threads_without_new_ticket():
-    client, store, comments = _ctx()
-    r = _post(client, _raw("r.okafor@uni.example.ac", "Re: export", references=MID))
-    assert r.json() == {"action": "append", "ticket": "ticket-123"}
-    assert len(store.all()) == 1  # no duplicate
-    assert [c.body for c in comments.for_ticket("ticket-123")] == ["the message body"]
-
-
-def test_unmatched_email_opens_new_requester_private_ticket():
-    client, store, comments = _ctx()
-    r = _post(client, _raw("new.person@uni.example.ac", "help please")).json()
+def test_new_ticket_requester_is_opaque_not_email():
+    # G4-03: the stored requester is the directory's opaque id, never the address.
+    client, store, comments, identity, _ = _ctx()
+    r = _post(client, _raw(SENDER, "help please"), verified=True, sender=SENDER).json()
     assert r["action"] == "new"
     new = store.get(r["ticket"])
-    assert new.origin == "email"
-    assert new.requester == "ext:new.person@uni.example.ac"
-    assert new.community_visible is False
-    assert comments.for_ticket(new.id)  # initial email stored on the thread
+    assert new.requester == identity.resolve(SENDER)
+    assert "@" not in new.requester  # no PII in the ticket
+    assert comments.for_ticket(new.id)
 
 
-def test_spoofed_sender_quarantined_not_appended():
-    client, store, comments = _ctx()
-    r = _post(client, _raw("attacker@evil.example", "Re: [SCREE-123] gimme")).json()
+def test_forged_authentication_results_is_ignored():
+    # G4-01: a dmarc=pass header inside the raw message does NOT make it verified;
+    # the verdict comes from the (trusted) `verified` flag, here False.
+    client, store, _, _, quarantine = _ctx()
+    r = _post(client, _raw("attacker@evil.example", "help", forged_auth=True), verified=False).json()
     assert r["action"] == "quarantine"
-    assert r["ticket"] == "ticket-123"
-    assert comments.for_ticket("ticket-123") == []  # not appended
-    assert len(store.all()) == 1  # not created either
+    assert len(store.all()) == 0  # no ticket created from a forged verdict
+    assert len(quarantine.all()) == 1  # G4-05: held for review
+
+
+def test_unverified_first_contact_is_quarantined_not_attributed():
+    # G4-02: no verified sender → never a silently-attributed new ticket.
+    client, store, _, _, quarantine = _ctx()
+    r = _post(client, _raw(SENDER, "help"), verified=False).json()
+    assert r["action"] == "quarantine"
+    assert store.all() == []
+    assert len(quarantine.all()) == 1
+
+
+def test_numeric_token_threads_real_ticket():
+    # G4-04: a header-less reply quoting the adapter-generated token threads.
+    client, store, comments, _, _ = _ctx()
+    created = _post(client, _raw(SENDER, "new issue"), verified=True, sender=SENDER).json()["ticket"]
+    token = store.get(created).email_token
+    assert token.split("-")[1].isdigit()  # numeric, matches [SCREE-NNN]
+    reply = _post(client, _raw(SENDER, f"Re: [{token}] more info"), verified=True, sender=SENDER).json()
+    assert reply == {"action": "append", "ticket": created}
+    assert len(store.all()) == 1  # threaded, not duplicated
+
+
+def test_spoofed_verified_sender_quarantined():
+    # A verified but different sender quoting the token → quarantine (INV-EMAIL-1).
+    client, store, _, _, quarantine = _ctx()
+    created = _post(client, _raw(SENDER, "new"), verified=True, sender=SENDER).json()["ticket"]
+    token = store.get(created).email_token
+    r = _post(client, _raw("attacker@evil.example", f"Re: [{token}] gimme"),
+              verified=True, sender="attacker@evil.example").json()
+    assert r["action"] == "quarantine" and r["ticket"] == created
+    assert len(quarantine.all()) == 1
+
+
+def test_oversized_email_rejected():
+    # G4-06: bound the inbound payload.
+    client, *_ = _ctx()
+    huge = _raw(SENDER, "big") + "x" * 1_000_001
+    assert _post(client, huge, verified=True, sender=SENDER).status_code == 413
+
+
+def test_quarantine_review_endpoint_is_agent_only_and_lists_held_mail():
+    client, _, _, _, _ = _ctx()
+    _post(client, _raw("attacker@evil.example", "help"), verified=False)
+    assert client.get("/tickets/quarantine", headers={"X-Spike-User": "cust"}).status_code == 403
+    held = client.get("/tickets/quarantine", headers={"X-Spike-User": "agent:dani"}).json()
+    assert len(held) == 1 and held[0]["claimed_from"] == "attacker@evil.example"

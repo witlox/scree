@@ -27,9 +27,11 @@ from scree.planning.rollup import portfolio
 from scree.risk.models import Risk, RiskCategory, Strategy
 from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
+from scree.access.identity import IdentityDirectory
 from scree.integration.o365.inbound import parse_inbound
 from scree.servicedesk.comments import CommentStore
 from scree.servicedesk.lifecycle import IllegalTransition
+from scree.servicedesk.quarantine import QuarantineStore
 from scree.servicedesk.models import Origin
 from scree.servicedesk.service import Forbidden, NotPromotable, TicketNotFound, TicketService
 from scree.servicedesk.store import TicketStore
@@ -55,6 +57,8 @@ class TicketCreateIn(BaseModel):
 
 class TicketTransitionIn(BaseModel):
     status: str
+
+MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 
 # Central error taxonomy: domain exception -> HTTP status (error-taxonomy.md, I-10).
 _ERROR_STATUS: dict[type[Exception], int] = {
@@ -90,6 +94,8 @@ def create_app(
     authenticator: OidcAuthenticator | None = None,
     risk_store: RiskStore | None = None,
     comment_store: CommentStore | None = None,
+    identity_directory: IdentityDirectory | None = None,
+    quarantine_store: QuarantineStore | None = None,
     planning_index: PlanningIndex | None = None,
     planning_authority: PlanningAuthority | None = None,
     audit: AuditSink | None = None,
@@ -236,7 +242,12 @@ def create_app(
             return doc_writer.write(path, content, principal, base_rev)
 
     if ticket_store is not None and ticket_authority is not None:
-        service = TicketService(ticket_store, ticket_authority, comment_store=comment_store)
+        identity = identity_directory or IdentityDirectory()
+        quarantine = quarantine_store or QuarantineStore()
+        service = TicketService(
+            ticket_store, ticket_authority, comment_store=comment_store,
+            identity=identity, quarantine=quarantine,
+        )
 
         def _requester_for(t, principal: str) -> str | None:
             # G2-06: only agents/the requester/related parties see who filed it;
@@ -249,6 +260,16 @@ def create_app(
             readable = ticket_authority.readable_tickets(principal, tickets)
             return [{"id": t.id, "requester": _requester_for(t, principal)}
                     for t in tickets if t.id in readable]
+
+        # Declared before /tickets/{ticket_id} so the static path isn't shadowed.
+        @app.get("/tickets/quarantine")
+        def list_quarantine(principal: str = Depends(get_principal)) -> list[dict]:
+            # G4-05: quarantined mail held for agent review.
+            if not ticket_authority.is_agent(principal):
+                raise HTTPException(status_code=403, detail="quarantine review is agent-only")
+            return [{"claimed_from": q.claimed_from, "subject": q.subject,
+                     "reason": q.reason, "candidate_ticket": q.candidate_ticket}
+                    for q in quarantine.all()]
 
         @app.get("/tickets/{ticket_id}")
         def get_ticket(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
@@ -290,13 +311,19 @@ def create_app(
         @app.post("/tickets/inbound-email")
         def inbound_email(
             raw: str = Body(..., embed=True),
+            verified: bool = Body(default=False, embed=True),
+            sender: str | None = Body(default=None, embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
-            # DD-006: the email poller is a separate service that posts here; only
-            # a trusted agent/service principal may ingest mail (the verified sender
-            # — not the caller — becomes the requester, INV-EMAIL-1 / G2-02).
+            # DD-006: the email poller is a separate trusted service that posts here.
+            # Only an agent/service principal may ingest mail, and the DKIM/DMARC
+            # verdict (`verified`) + aligned `sender` come from the poller, NOT the
+            # attacker-controlled raw message (G4-01). The verified sender — not the
+            # caller — becomes the (opaque) requester (INV-EMAIL-1 / G2-02).
             if not ticket_authority.is_agent(principal):
                 raise HTTPException(status_code=403, detail="email ingestion is agent-only")
-            return service.ingest_email(parse_inbound(raw))
+            if len(raw.encode("utf-8")) > MAX_INBOUND_EMAIL_BYTES:  # G4-06
+                raise HTTPException(status_code=413, detail="inbound email too large")
+            return service.ingest_email(parse_inbound(raw), verified=verified, sender=sender)
 
     return app
