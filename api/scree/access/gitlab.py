@@ -50,7 +50,10 @@ class GitLabAuthority:
         return out
 
     def readable_spaces(self, token: str) -> set[str]:
-        # Projects the user belongs to, by full path (path_with_namespace == Space id).
+        # Projects the user is a MEMBER of, by full path (path_with_namespace ==
+        # Space id). G9-03 (accepted): Scree Spaces are member-access private
+        # projects (INV-ACC-2); visibility-only (public/internal non-member) read is
+        # intentionally not a "Space" here. Widen the query if that model changes.
         return self._paginate("/api/v4/projects", token, "path_with_namespace")
 
     def readable_groups(self, token: str) -> set[str]:

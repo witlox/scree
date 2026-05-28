@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from scree.access.audit import AuditSink
 from scree.access.authority import Authority
+from scree.access.cache import TtlCache
 from scree.access.gitlab import SpaceAuthority
 from scree.access.oidc import AuthError, OidcAuthenticator
 from scree.access.ticket_authority import TicketAuthority
@@ -140,6 +141,11 @@ def create_app(
     # rather than silently 404-ing the route.
     if (planning_index is None) != (planning_authority is None):
         raise ValueError("planning requires both planning_index and planning_authority")
+    # G9-02: the composed GitLab authority needs a token source, else every request
+    # silently resolves to empty authority. Require a token_exchanger unless on the
+    # dev header path.
+    if gitlab_authority is not None and token_exchanger is None and not allow_insecure_header_auth:
+        raise ValueError("gitlab_authority requires a token_exchanger (or the dev header path)")
     # docs_url/redoc_url disabled: "/docs" is a Scree resource path, not Swagger UI.
     app = FastAPI(docs_url=None, redoc_url=None)
 
@@ -148,6 +154,11 @@ def create_app(
     services = service_principals or set()
     archived = archived_spaces or set()
     orphan_cache = OrphanCache()
+    # G9-01 (AR-08): short-TTL caches so a busy Gateway doesn't exchange tokens /
+    # resolve GitLab membership on every request.
+    _token_cache: TtlCache[str] = TtlCache(ttl=60.0)
+    _space_cache: TtlCache[set] = TtlCache(ttl=60.0)
+    _group_cache: TtlCache[set] = TtlCache(ttl=60.0)
 
     for exc_type, status in _ERROR_STATUS.items():
         app.add_exception_handler(exc_type, _make_handler(status))
@@ -183,10 +194,15 @@ def create_app(
             if token_exchanger is not None:
                 # I-03: trade the inbound token for a GitLab-scoped one (RFC 8693),
                 # so the Gateway resolves authority as the user against GitLab.
-                try:
-                    request.state.gitlab_token = token_exchanger.exchange(bearer, gitlab_audience)
-                except AuthError:
-                    raise HTTPException(status_code=401, detail="token exchange failed")
+                # G9-01: cache the exchange (short TTL) to avoid a round-trip/request.
+                gitlab_token = _token_cache.get(bearer)
+                if gitlab_token is None:
+                    try:
+                        gitlab_token = token_exchanger.exchange(bearer, gitlab_audience)
+                    except AuthError:
+                        raise HTTPException(status_code=401, detail="token exchange failed")
+                    _token_cache.put(bearer, gitlab_token)
+                request.state.gitlab_token = gitlab_token
         elif allow_insecure_header_auth and x_spike_user:
             principal = x_spike_user  # spike/dev only (gated by allow_insecure_header_auth)
             if gitlab_authority is not None:
@@ -198,23 +214,27 @@ def create_app(
 
     def _readable_spaces(principal: str, request: Request) -> set[str]:
         # Composed authority: real GitLab membership when configured (resolved ONCE
-        # per request, AR-08), else the spike stub. Closes I-03 wiring.
+        # per request AND cached short-TTL across requests, AR-08), else the stub.
         if gitlab_authority is not None:
-            cached = getattr(request.state, "readable_spaces", None)
+            token = getattr(request.state, "gitlab_token", None)
+            if not token:
+                return set()
+            cached = _space_cache.get(token)
             if cached is None:
-                token = getattr(request.state, "gitlab_token", None)
-                cached = gitlab_authority.readable_spaces(token) if token else set()
-                request.state.readable_spaces = cached
+                cached = gitlab_authority.readable_spaces(token)
+                _space_cache.put(token, cached)
             return cached
         return authority.readable_spaces(principal)
 
     def _readable_groups(principal: str, request: Request) -> set[str]:
         if gitlab_authority is not None:
-            cached = getattr(request.state, "readable_groups", None)
+            token = getattr(request.state, "gitlab_token", None)
+            if not token:
+                return set()
+            cached = _group_cache.get(token)
             if cached is None:
-                token = getattr(request.state, "gitlab_token", None)
-                cached = gitlab_authority.readable_groups(token) if token else set()
-                request.state.readable_groups = cached
+                cached = gitlab_authority.readable_groups(token)
+                _group_cache.put(token, cached)
             return cached
         return planning_authority.readable_groups(principal) if planning_authority else set()
 
