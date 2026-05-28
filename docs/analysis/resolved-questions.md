@@ -89,4 +89,16 @@ specific WYSIWYG editor library (OQ-X-002) remain architect decisions.
 
 ---
 
+## Architect phase — component choices (2026-05-28)
+
+- **OQ-X-001** — Authorization engine. **Resolved** → **ADR-0007**: GitLab RBAC
+  (coarse) + **OpenFGA** ReBAC for tickets; `ListObjects` backs INV-AGG.
+- **OQ-X-002** — WYSIWYG editor. **Resolved** → **ADR-0009**: **TipTap**.
+- **OQ-X-007** — Deployment topology. **Resolved** → **ADR-0010**: **Kubernetes**
+  (prod) + Docker **Compose/Testcontainers** (local dev + CI e2e/contract).
+- **OQ-X-009** — Encryption tooling. **Resolved** → **ADR-0008**: **SOPS+age**
+  (client-key internal) + **Vault Transit** per-requester (Gateway-mediated external).
+
+---
+
 **End of resolved questions.**
