@@ -29,3 +29,17 @@ wrong — the architect must validate these early.
 The ★ assumptions (A-2, A-3, A-4, A-5) are the load-bearing ones. The architect
 should spike them before committing to the architecture, and the docs-frontend
 spike (PROPOSAL) is a natural place to validate A-4 and A-5 end-to-end.
+
+## Validation status (docs-frontend spike, 2026-05-28 — see `docs/spike-report.md`)
+
+- **A-5 — mechanism validated.** Per-item permission filtering works: OpenFGA
+  `ListObjects` ∪ GitLab authority, end-to-end through the Gateway (#34, #37).
+  Performance at scale is **not** load-tested — remains OQ-X-006.
+- **A-4 — ACCEPTED as a documented risk (not validated).** GitLab Advanced
+  Search is a **Ultimate** feature on **Elasticsearch** (license + ES cluster +
+  indexing); it cannot be reproduced on a free CE container. Must be validated on
+  a real Ultimate environment (staging/UAT) before internal aggregation relies on
+  it. Fallback if it fails: filter via the derived index rather than Advanced
+  Search.
+- A-2 (token exchange), A-3 (external customers without GitLab seats): not
+  exercised by the spike; carried forward to architecture/integration.
