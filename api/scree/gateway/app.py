@@ -7,7 +7,10 @@ from scree.knowledge.doc_service import Conflict, DocService, DuplicateId, MRReq
 from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.store import DocStore
+import uuid
+
 from scree.risk.models import Risk
+from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
 from scree.servicedesk.lifecycle import IllegalTransition
 from scree.servicedesk.service import (
@@ -27,6 +30,7 @@ def create_app(
     ticket_authority: TicketAuthority | None = None,
     doc_writer: DocService | None = None,
     authenticator: OidcAuthenticator | None = None,
+    risk_store: RiskStore | None = None,
 ) -> FastAPI:
     """The single enforcement point. Identity comes from a verified OIDC bearer
     token (INV-ID-1) when an authenticator is configured; otherwise it falls back
@@ -66,6 +70,36 @@ def create_app(
             "severity": risk.severity,
             "fires_critical_webhook": fires_critical_webhook(risk),
         }
+
+    if risk_store is not None:
+
+        def _risk_view(r: Risk) -> dict:
+            return {"id": r.id, "title": r.title, "space": r.space, "category": r.category,
+                    "score": r.score, "severity": r.severity,
+                    "fires_critical_webhook": fires_critical_webhook(r)}
+
+        @app.post("/risks")
+        def create_risk(
+            title: str = Body(..., embed=True),
+            space: str = Body(..., embed=True),
+            category: str = Body(..., embed=True),
+            likelihood: int = Body(..., embed=True),
+            impact: int = Body(..., embed=True),
+            strategy: str = Body("mitigated", embed=True),
+            principal: str = Depends(get_principal),
+        ) -> dict:
+            if not authority.can_write(principal, space):
+                raise HTTPException(status_code=403)
+            risk = Risk(id=f"risk-{uuid.uuid4().hex[:8]}", title=title, space=space,
+                        category=category, likelihood=likelihood, impact=impact, strategy=strategy)
+            risk_store.put(risk)
+            return _risk_view(risk)
+
+        @app.get("/risks")
+        def list_risks(principal: str = Depends(get_principal)) -> list[dict]:
+            # INV-AGG: only risks in Spaces the principal may read.
+            readable = authority.readable_spaces(principal)
+            return [_risk_view(r) for r in risk_store.all() if r.space in readable]
 
     @app.get("/docs")
     def list_docs(principal: str = Depends(get_principal)) -> list[dict]:
