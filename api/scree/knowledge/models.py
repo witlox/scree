@@ -9,3 +9,5 @@ class Doc:
     title: str
     space: str
     body: str
+    created: str | None = None  # derived from Git history (INV-ST-5)
+    updated: str | None = None

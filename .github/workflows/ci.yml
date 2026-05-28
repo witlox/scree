@@ -18,5 +18,5 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
           uv venv --python 3.13
-          uv pip install fastapi httpx pytest pytest-bdd
+          uv pip install fastapi httpx pytest pytest-bdd pyyaml
           .venv/bin/pytest -q
