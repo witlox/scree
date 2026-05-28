@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from scree.access.identity import IdentityDirectory
 from scree.access.ticket_authority import TicketAuthority
+from scree.crypto.transit import DecryptionUnavailable, TicketCrypto
 from scree.integration.o365.inbound import InboundEmail
 
 from .comments import CommentStore, TicketComment
@@ -38,12 +39,14 @@ class TicketService:
         *,
         identity: IdentityDirectory | None = None,
         quarantine: QuarantineStore | None = None,
+        crypto: TicketCrypto | None = None,
     ) -> None:
         self._store = store
         self._authority = authority
         self._comments = comment_store
         self._identity = identity
         self._quarantine = quarantine
+        self._crypto = crypto
         self._email_seq = 0  # G4-04: numeric SCREE-NNN sequence (spike; per-instance)
 
     def create(
@@ -53,10 +56,11 @@ class TicketService:
         space: str = "support/service-desk",
         *,
         email_message_id: str | None = None,
+        encrypted: bool = False,
     ) -> Ticket:
         """Create a ticket from any origin, normalized to one record: opaque
         requester (INV-DP-1), status open. Tickets default requester-private even
-        from public Slack threads (DD-013)."""
+        from public Slack threads (DD-013). `encrypted` is a create-time decision."""
         # DD-013: tickets default requester-private regardless of origin (even a
         # public Slack thread); promotion to community-visible is explicit.
         token = None
@@ -74,6 +78,7 @@ class TicketService:
             email_token=token,  # lets later replies thread when RFC headers are stripped
             email_message_id=email_message_id,
             created_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+            encrypted=encrypted,
         )
         self._store.put(ticket)
         # I-01: grant the requester their viewer relation so they can read it.
@@ -141,10 +146,7 @@ class TicketService:
         captured_by = self._principal_for(reactor_raw)
         ticket = self.create("slack", requester)  # community_visible=False (DD-013)
         self._store.put(replace(ticket, captured_by=captured_by))  # capturer recorded separately
-        if self._comments is not None:
-            self._comments.add(TicketComment(
-                ticket_id=ticket.id, author=captured_by, body=snapshot, source="slack",
-            ))
+        self._store_comment(ticket.id, captured_by, snapshot, "slack")
         return {"action": "captured", "ticket": ticket.id,
                 "requester": requester, "captured_by": captured_by}
 
@@ -158,10 +160,7 @@ class TicketService:
         ticket = self._store.get(ticket_id)
         if ticket is None or not self._authority.can_read(reactor_principal, ticket):
             return {"action": "refused", "reason": "ticket not visible"}
-        if self._comments is not None:
-            self._comments.add(TicketComment(
-                ticket_id=ticket_id, author=reactor_principal, body=snapshot, source="slack",
-            ))
+        self._store_comment(ticket_id, reactor_principal, snapshot, "slack")
         return {"action": "linked", "ticket": ticket_id}
 
     def _hold(self, email: InboundEmail, decision) -> None:
@@ -171,12 +170,41 @@ class TicketService:
                 reason=decision.reason or "quarantined", candidate_ticket=decision.ticket_id,
             ))
 
+    def add_comment(self, ticket_id: str, author: str, body: str, source: str = "api") -> None:
+        self._store_comment(ticket_id, author, body, source)
+
     def _append(self, ticket_id: str, author: str, email: InboundEmail) -> None:
-        if self._comments is not None:
-            self._comments.add(TicketComment(
-                ticket_id=ticket_id, author=author, body=email.body,
-                source="email", message_id=email.message_id,
-            ))
+        self._store_comment(ticket_id, author, email.body, "email", message_id=email.message_id)
+
+    def _store_comment(self, ticket_id, author, body, source, message_id=None) -> None:
+        """Append a comment, encrypting the body at rest when the ticket is
+        encrypted (ADR-0005: per-requester key, Gateway-mediated)."""
+        if self._comments is None:
+            return
+        ticket = self._store.get(ticket_id)
+        encrypted = bool(ticket and ticket.encrypted and self._crypto is not None)
+        stored = self._crypto.encrypt(ticket.requester, body) if encrypted else body
+        self._comments.add(TicketComment(
+            ticket_id=ticket_id, author=author, body=stored,
+            source=source, message_id=message_id, encrypted=encrypted,
+        ))
+
+    def read_comments(self, ticket_id: str) -> list[dict]:
+        """Return a ticket's comments, decrypting encrypted bodies via the Gateway.
+        A crypto-shredded body is surfaced as an unrecoverable marker, not raw
+        ciphertext (INV-DP-2 erasure)."""
+        ticket = self._store.get(ticket_id)
+        out: list[dict] = []
+        for c in (self._comments.for_ticket(ticket_id) if self._comments else []):
+            body = c.body
+            if c.encrypted and self._crypto is not None and ticket is not None:
+                try:
+                    body = self._crypto.decrypt(ticket.requester, c.body)
+                except DecryptionUnavailable:
+                    body = "[unrecoverable: encryption key erased]"
+            out.append({"author": c.author, "body": body, "source": c.source})
+        return out
+
 
     def _load(self, ticket_id: str) -> Ticket:
         ticket = self._store.get(ticket_id)

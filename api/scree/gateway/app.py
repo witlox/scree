@@ -30,6 +30,7 @@ from scree.risk.store import RiskStore
 from scree.risk.triggers import fires_critical_webhook
 from scree.access.erasure import ErasureReceiptStore, ErasureService
 from scree.access.identity import IdentityDirectory
+from scree.crypto.transit import FernetCrypto, TicketCrypto
 from scree.integration.o365.inbound import parse_inbound
 from scree.integration.slack.capture import CaptureRateLimiter, SlackDirectory
 from scree.servicedesk.comments import CommentStore
@@ -56,6 +57,8 @@ class RiskCreateIn(RiskAssessIn):
 class TicketCreateIn(BaseModel):
     origin: Origin
     requester: str | None = None
+    encrypt: bool = False  # create-time decision (ADR-0005)
+    body: str | None = None  # initial description, encrypted at rest if encrypt
 
 
 class TicketTransitionIn(BaseModel):
@@ -104,6 +107,7 @@ def create_app(
     archived_spaces: set[str] | None = None,
     slack_directory: SlackDirectory | None = None,
     slack_rate_limiter: CaptureRateLimiter | None = None,
+    ticket_crypto: TicketCrypto | None = None,
     planning_index: PlanningIndex | None = None,
     planning_authority: PlanningAuthority | None = None,
     audit: AuditSink | None = None,
@@ -289,12 +293,14 @@ def create_app(
         compliance = compliance_principals or set()  # fail-closed: no one erases unless configured
         slack_dir = slack_directory or SlackDirectory()
         slack_limiter = slack_rate_limiter or CaptureRateLimiter()
+        crypto = ticket_crypto or FernetCrypto()
         receipts = ErasureReceiptStore()
         service = TicketService(
             ticket_store, ticket_authority, comment_store=comment_store,
-            identity=identity, quarantine=quarantine,
+            identity=identity, quarantine=quarantine, crypto=crypto,
         )
-        erasure = ErasureService(identity, ticket_authority, quarantine=quarantine, receipts=receipts)
+        erasure = ErasureService(identity, ticket_authority, quarantine=quarantine,
+                                 receipts=receipts, crypto=crypto)
 
         def _requester_for(t, principal: str) -> str | None:
             # G2-06: only agents/the requester/related parties see who filed it;
@@ -337,9 +343,33 @@ def create_app(
             if requester and requester != principal and not ticket_authority.is_agent(principal):
                 raise HTTPException(status_code=403, detail="cannot create ticket for another requester")
             effective_requester = requester if (requester and ticket_authority.is_agent(principal)) else principal
-            t = service.create(body.origin, effective_requester)
+            t = service.create(body.origin, effective_requester, encrypted=body.encrypt)
+            if body.body:  # initial description, encrypted at rest if the ticket is encrypted
+                service.add_comment(t.id, principal, body.body, "api")
             return {"id": t.id, "requester": t.requester, "origin": t.origin,
-                    "status": t.status, "community_visible": t.community_visible}
+                    "status": t.status, "community_visible": t.community_visible, "encrypted": t.encrypted}
+
+        @app.get("/tickets/{ticket_id}/comments")
+        def get_comments(ticket_id: str, principal: str = Depends(get_principal)) -> list[dict]:
+            t = ticket_store.get(ticket_id)
+            if t is None or not ticket_authority.can_read(principal, t):
+                raise HTTPException(status_code=404)
+            # Gateway-mediated decryption (ADR-0008): bodies are ciphertext at rest.
+            return service.read_comments(ticket_id)
+
+        @app.post("/tickets/{ticket_id}/encrypt")
+        def encrypt_ticket(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
+            t = ticket_store.get(ticket_id)
+            if t is None or not ticket_authority.can_read(principal, t):
+                raise HTTPException(status_code=404)
+            if not (ticket_authority.is_agent(principal) or principal == t.assignee):
+                raise HTTPException(status_code=403)
+            # Feature: encryption is a create-time decision; refuse retroactively and
+            # warn that prior cleartext remains in Git history.
+            raise HTTPException(
+                status_code=409,
+                detail="encryption is create-time only; prior cleartext remains in Git history",
+            )
 
         @app.patch("/tickets/{ticket_id}")
         def transition_ticket(

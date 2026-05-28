@@ -9,9 +9,10 @@ class TicketComment:
 
     ticket_id: str
     author: str  # opaque requester id or agent
-    body: str
+    body: str  # ciphertext when `encrypted` (stored at rest); plaintext otherwise
     source: Origin = "api"
     message_id: str | None = None  # source RFC Message-ID, when from email
+    encrypted: bool = False  # body is per-requester ciphertext (ADR-0005)
 
 
 class CommentStore:
