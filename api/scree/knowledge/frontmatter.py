@@ -16,7 +16,10 @@ def parse(text: str) -> dict:
     """
     if not text.startswith("---"):
         raise InvalidFrontmatter("missing frontmatter")
-    _, raw_meta, body = text.split("---", 2)
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        raise InvalidFrontmatter("malformed frontmatter (missing closing ---)")
+    _, raw_meta, body = parts
     meta = yaml.safe_load(raw_meta) or {}
     missing = [k for k in REQUIRED_KEYS if k not in meta]
     if missing:

@@ -87,19 +87,15 @@ def create_app(
 
         @app.get("/tickets")
         def list_tickets(x_spike_user: str = Header(...)) -> list[dict]:
-            # INV-AGG for tickets: union of OpenFGA relations and desk membership.
-            all_ids = {t.id for t in ticket_store.all()}
-            readable = ticket_authority.readable_tickets(x_spike_user, all_ids)
-            return [
-                {"id": t.id, "requester": t.requester}
-                for t in ticket_store.all()
-                if t.id in readable
-            ]
+            # INV-AGG/ACC: relations ∪ desk membership ∪ community_visible.
+            tickets = ticket_store.all()
+            readable = ticket_authority.readable_tickets(x_spike_user, tickets)
+            return [{"id": t.id, "requester": t.requester} for t in tickets if t.id in readable]
 
         @app.get("/tickets/{ticket_id}")
         def get_ticket(ticket_id: str, x_spike_user: str = Header(...)) -> dict:
             t = ticket_store.get(ticket_id)
-            if t is None or not ticket_authority.can_read(x_spike_user, ticket_id):
+            if t is None or not ticket_authority.can_read(x_spike_user, t):
                 raise HTTPException(status_code=404)
             return {"id": t.id, "requester": t.requester, "status": t.status,
                     "community_visible": t.community_visible}

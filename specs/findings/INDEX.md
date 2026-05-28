@@ -52,3 +52,22 @@ The key-model correction (AR-01, caught by the user) reshaped ADR-0005/0008:
 Gateway-mediated (Vault Transit) is the default for encrypted content; client-side
 `age` keys are scoped to **break-glass/DR/SOC** content that must be readable
 offline when the online stack is down.
+
+## Implementation Gate 1 (2026-05-28) — `impl-gate-1.md`
+
+Adversarial pass over merged code (PRs #33–#44).
+
+| ID | Sev | Finding | Status |
+|---|---|---|---|
+| I-01 | **High** | Customer can't read the ticket they just created (no requester tuple) | this round |
+| I-02 | **High** | `community_visible` grants no read access (INV-ACC-3 unenforced) | this round |
+| I-03 | **High** | Identity is an untrusted header; real authz not wired into Gateway | later round |
+| I-04 | Medium | Re-writing identical doc content crashes (500) | this round |
+| I-05 | Medium | Malformed frontmatter → 500 instead of 422 | this round |
+| I-06 | Medium | Doc write: no id allocation / uniqueness / kind check (INV-ST-4) | later round |
+| I-07 | Medium | Doc write: no optimistic concurrency (INV-ST-6) | later round |
+| I-08 | Medium | No audit anywhere (INV-ID-3) | later round |
+| I-09 | Medium | Risk register hollow (predicate not wired; no persistence) | later round |
+| I-10 | Low | Per-endpoint error handling, not the central handler | later round |
+
+**Counts:** 3 high · 6 medium · 1 low — 10 total. Fixing I-01/02/04/05 this round.
