@@ -48,4 +48,28 @@ specific WYSIWYG editor library (OQ-X-002) remain architect decisions.
 
 ---
 
+## Analyst phase (2026-05-28)
+
+- **OQ-A-001** — Resource modeling. **Resolved** → unified `Resource` core + typed
+  kinds (Doc/Ticket/Risk). `specs/domain-model.md`.
+- **OQ-A-002** — Definition of "space". **Resolved** → a Space is a GitLab
+  project/repo; groups give hierarchy; org risks in dedicated repos.
+  `specs/domain-model.md`.
+- **Planning** — **Resolved** → planning items are aggregation *views* over GitLab
+  epics/iterations/milestones, not stored resources. `specs/domain-model.md`.
+- **OQ-A-005** — Orphan detection. **Resolved** → an active resource whose owner
+  lost access / whose Space was archived is flagged in the hourly batch to Space
+  maintainers for manual reassignment. INV-ORPH-1.
+- **OQ-A-006** — State machines. **Resolved** → minimal: Ticket
+  open→resolved→closed (+reopen); Risk open→closed (close is MR-required); Doc has
+  versions, no states. `specs/domain-model.md`, INV-LC-*.
+- **OQ-A-009** — Reference integrity. **Resolved** → references by stable `id`;
+  tombstone, no hard delete; an unreadable/missing target renders "unavailable"
+  with no content leak; no hard referential blocking. INV-REF-*.
+- **OQ-A-013** — `severity: critical`. **Resolved (analyst proposal)** → a Risk is
+  critical when its `category` is `security` or `compliance`; this drives the
+  webhook. Awaiting OQ-HE-001 ratification. `specs/domain-model.md`, INV-IX-1.
+
+---
+
 **End of resolved questions.**

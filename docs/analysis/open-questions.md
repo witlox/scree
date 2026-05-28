@@ -12,17 +12,9 @@ These should be resolved in the analyst phase, producing specifications, invaria
 
 ### Domain modeling
 
-**OQ-A-001**: Are tickets, risks, planning items, and docs four distinct resource types, or four views of a unified resource type?
+**OQ-A-001**: Resource modeling (one type vs four). **RESOLVED** (2026-05-28) → unified `Resource` core + typed kinds (Doc/Ticket/Risk). See `specs/domain-model.md`, `resolved-questions.md`.
 
-*Considerations*: They share metadata patterns (owner, references, history, permissions). They differ in state machines and lifecycles. A unified type with subtypes is more elegant but requires careful handling of subtype-specific behavior. Distinct types are more straightforward but produce more code duplication.
-
-*Owner*: Analyst.
-
-**OQ-A-002**: What is a "space" in Scree, and how does it relate to GitLab groups, projects, and Slack channels?
-
-*Considerations*: Confluence's "space" is a high-level grouping for related content. Mapping naively to GitLab projects works for some cases (per-team docs) but not others (cross-team documentation, public knowledge base). The analyst should propose a coherent model.
-
-*Owner*: Analyst.
+**OQ-A-002**: Definition of "space". **RESOLVED** (2026-05-28) → a Space is a GitLab project/repo; groups give hierarchy; org-level risks in dedicated repos. See `specs/domain-model.md`, `resolved-questions.md`.
 
 **OQ-A-003**: How does the "org tag" on external customer accounts evolve over time?
 
@@ -38,17 +30,9 @@ These should be resolved in the analyst phase, producing specifications, invaria
 
 ### Lifecycle and state
 
-**OQ-A-005**: When is an "active" resource considered orphaned?
+**OQ-A-005**: Orphan detection. **RESOLVED** (2026-05-28) → active resource whose owner lost access / Space archived, flagged in the hourly batch to Space maintainers for manual reassignment. See INV-ORPH-1, `resolved-questions.md`.
 
-*Decision*: orphaned actives are highlighted for manual reassignment. The analyst must specify: when the orphan check runs, what counts as orphaned (owner left org? owner inactive for N days? owner deleted entirely?), how the orphan is surfaced (UI? notification? batch report?), what reassignment workflow exists.
-
-*Owner*: Analyst.
-
-**OQ-A-006**: What are the precise state machines for tickets, risks, and planning items?
-
-*Considerations*: States, allowed transitions, who can perform transitions, what evidence is required. The analyst should specify state machines as testable invariants.
-
-*Owner*: Analyst.
+**OQ-A-006**: State machines. **RESOLVED** (2026-05-28) → minimal: Ticket open→resolved→closed (+reopen); Risk open→closed (close MR-required); Doc versions-only. See `specs/domain-model.md`, INV-LC-*, `resolved-questions.md`.
 
 **OQ-A-007**: How are ticket origins (email, web, Slack, API) normalized into a unified ticket creation flow?
 
@@ -64,11 +48,7 @@ These should be resolved in the analyst phase, producing specifications, invaria
 
 *Owner*: Analyst.
 
-**OQ-A-009**: What are the integrity constraints on cross-resource references?
-
-*Considerations*: Risks reference tickets, tickets reference docs, planning items reference epics, Slack threads link to tickets. What happens when a referenced resource is deleted? Moved? Has its permissions changed such that the referencing user can no longer see it?
-
-*Owner*: Analyst.
+**OQ-A-009**: Cross-resource reference integrity. **RESOLVED** (2026-05-28) → references by stable `id`; tombstone (no hard delete); unreadable/missing target renders "unavailable" with no content leak; no hard referential blocking. See INV-REF-*, `resolved-questions.md`.
 
 ### Permission invariants
 
@@ -94,11 +74,7 @@ These should be resolved in the analyst phase, producing specifications, invaria
 
 ### Severity definitions
 
-**OQ-A-013**: Define `severity: critical` precisely.
-
-*Considerations*: This field drives webhook-triggered immediate indexing. If everything is critical, nothing is. Need concrete definition with examples. Proposed scope from conversation: "imminent threat to delivery, safety, security, or compliance requiring immediate cross-team awareness."
-
-*Owner*: Analyst (proposal) + Head of Engineering (ratification).
+**OQ-A-013**: Define `severity: critical`. **RESOLVED (analyst proposal)** (2026-05-28) → a Risk is critical when its `category` is `security` or `compliance`; drives the webhook. Awaiting OQ-HE-001 ratification. See `specs/domain-model.md`, INV-IX-1.
 
 ### Email integration specifics
 
