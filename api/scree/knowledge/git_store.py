@@ -31,6 +31,18 @@ class GitBackedDocStore:
                 path=str(md_path.relative_to(self._root)),  # folder path = hierarchy
             )
 
+    def write(self, rel_path: str, text: str, *, author: str, message: str) -> None:
+        """Write a doc file and commit it (INV-ST-1: every mutation is a commit)."""
+        target = self._root / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+        subprocess.run(["git", "-C", str(self._root), "add", rel_path], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(self._root), "-c", f"user.name={author}",
+             "-c", f"user.email={author}@scree", "commit", "-m", message],
+            check=True, capture_output=True,
+        )
+
     def get(self, doc_id: str) -> Doc | None:
         return next((d for d in self._iter_docs() if d.id == doc_id), None)
 
