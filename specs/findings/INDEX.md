@@ -206,3 +206,15 @@ Adversarial pass over the portal-backend slice (PR #70). Primary target: public/
 | G11-03 | Low | Security/input | Attachments not type-restricted/scanned (+ unindexed search) | ✅ #71 (executable-extension allowlist; AV/index noted) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
+
+## Implementation Gate 12 (2026-05-28) — `impl-gate-12.md`
+
+Adversarial pass over the degradation slice (PR #72). Primary target: does degradation actually hold?
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| G12-01 | Medium | Robustness/degradation | Composed-authority read path needs GitLab → reads fail on cold cache during an outage | ✅ #73 (serve last-known membership stale-OK during outage) |
+| G12-02 | Medium | Robustness/degradation | Write-guard incomplete (slack_link, migration) → some writes proceed during an outage | ✅ #73 (_require_gitlab on slack_link + migration) |
+| G12-03 | Low | Robustness/operability | Availability is a static flag with no health probe | ✅ #73 (accepted: probe/circuit-breaker is a deploy concern, documented) |
+
+**Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.

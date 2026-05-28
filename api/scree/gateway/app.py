@@ -212,6 +212,10 @@ def create_app(
     _token_cache: TtlCache[str] = TtlCache(ttl=60.0)
     _space_cache: TtlCache[set] = TtlCache(ttl=60.0)
     _group_cache: TtlCache[set] = TtlCache(ttl=60.0)
+    # G12-01: last-known membership, served stale-OK while GitLab is unreachable so
+    # authorized reads survive an outage (INV-DEG-1).
+    _last_spaces: dict[str, set] = {}
+    _last_groups: dict[str, set] = {}
 
     for exc_type, status in _ERROR_STATUS.items():
         app.add_exception_handler(exc_type, _make_handler(status))
@@ -274,8 +278,11 @@ def create_app(
                 return set()
             cached = _space_cache.get(token)
             if cached is None:
+                if not health.gitlab_up:  # G12-01: outage → serve last-known (stale-OK)
+                    return _last_spaces.get(token, set())
                 cached = gitlab_authority.readable_spaces(token)
                 _space_cache.put(token, cached)
+                _last_spaces[token] = cached
             return cached
         return authority.readable_spaces(principal)
 
@@ -286,8 +293,11 @@ def create_app(
                 return set()
             cached = _group_cache.get(token)
             if cached is None:
+                if not health.gitlab_up:  # G12-01: outage → serve last-known (stale-OK)
+                    return _last_groups.get(token, set())
                 cached = gitlab_authority.readable_groups(token)
                 _group_cache.put(token, cached)
+                _last_groups[token] = cached
             return cached
         return planning_authority.readable_groups(principal) if planning_authority else set()
 
@@ -616,6 +626,7 @@ def create_app(
         ) -> dict:
             if principal not in services:
                 raise HTTPException(status_code=403, detail="slack link is service-principal only")
+            _require_gitlab()  # G12-02: appends a Git-backed comment
             _check_comment_size(snapshot)  # G8-03
             return service.link_from_slack(reactor, ticket_id, snapshot, slack_dir=slack_dir)
 
@@ -645,6 +656,7 @@ def create_app(
             # Big-bang cutover batch — service principal only (DD-006/DD-014).
             if principal not in services:
                 raise HTTPException(status_code=403, detail="migration is service-principal only")
+            _require_gitlab()  # G12-02: bulk-creates Git-backed tickets/docs
             items = [SourceItem(kind=i.kind, old_id=i.old_id, title=i.title, content=i.content,
                                 marked=i.marked, reporter=i.reporter, space=i.space)
                      for i in body.items]
