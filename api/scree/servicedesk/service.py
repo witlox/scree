@@ -109,34 +109,50 @@ class TicketService:
         self._append(ticket.id, requester, email)
         return {"action": "new", "ticket": ticket.id}
 
+    def _principal_for(self, mapped: str | None) -> str | None:
+        """Normalize a Slack-mapped identity to the principal we store. Internal
+        agents pass through; external customers resolve to an OPAQUE id via the
+        identity directory so no PII enters Git/OpenFGA (G6-01, consistent with the
+        email path's G4-03 fix)."""
+        if mapped is None:
+            return None
+        if self._authority.is_agent(mapped):
+            return mapped
+        return self._identity.resolve(mapped) if self._identity else mapped
+
     def capture_from_slack(self, reactor: str, author: str, snapshot: str, *, slack_dir, limiter) -> dict:
         """Capture a Slack thread into a requester-private draft (DD-012/DD-013).
         INV-SLACK-1: the requester is the captured message's AUTHOR (resolved to a
         Keycloak identity; refused if unmappable, INV-ID-2); the capturer is
         recorded separately; capture is rate-limited per Slack user."""
-        reactor_principal = slack_dir.resolve(reactor)
-        if reactor_principal is None:
+        reactor_raw = slack_dir.resolve(reactor)
+        if reactor_raw is None:
             return {"action": "refused", "reason": "reactor identity could not be resolved"}
+        author_raw = slack_dir.resolve(author)
+        if author_raw is None:
+            return {"action": "refused", "reason": "author identity could not be resolved"}
+        # G6-03: rate-limit only resolvable captures, so the limit counts captures
+        # (not failed lookups) per the spec's "5 captures".
         if not limiter.allow(reactor):
             return {"action": "refused", "reason": "rate limited"}
-        requester = slack_dir.resolve(author)
-        if requester is None:
-            return {"action": "refused", "reason": "author identity could not be resolved"}
+        requester = self._principal_for(author_raw)  # external author -> opaque (G6-01)
+        captured_by = self._principal_for(reactor_raw)
         ticket = self.create("slack", requester)  # community_visible=False (DD-013)
-        self._store.put(replace(ticket, captured_by=reactor_principal))  # capturer recorded separately
+        self._store.put(replace(ticket, captured_by=captured_by))  # capturer recorded separately
         if self._comments is not None:
             self._comments.add(TicketComment(
-                ticket_id=ticket.id, author=reactor_principal, body=snapshot, source="slack",
+                ticket_id=ticket.id, author=captured_by, body=snapshot, source="slack",
             ))
         return {"action": "captured", "ticket": ticket.id,
-                "requester": requester, "captured_by": reactor_principal}
+                "requester": requester, "captured_by": captured_by}
 
     def link_from_slack(self, reactor: str, ticket_id: str, snapshot: str, *, slack_dir) -> dict:
         """Attach a thread snapshot to an existing ticket — only if the reactor's
         mapped identity may see it (existence-leak-safe refusal otherwise)."""
-        reactor_principal = slack_dir.resolve(reactor)
-        if reactor_principal is None:
+        reactor_raw = slack_dir.resolve(reactor)
+        if reactor_raw is None:
             return {"action": "refused", "reason": "reactor identity could not be resolved"}
+        reactor_principal = self._principal_for(reactor_raw)  # opaque for externals (G6-01)
         ticket = self._store.get(ticket_id)
         if ticket is None or not self._authority.can_read(reactor_principal, ticket):
             return {"action": "refused", "reason": "ticket not visible"}
