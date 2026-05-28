@@ -12,6 +12,7 @@ def test_gateway_filters_git_backed_docs(repo):
     app = create_app(
         GitBackedDocStore(repo),
         Authority({"rivera": {"platform/handbook"}}),
+        allow_insecure_header_auth=True,
     )
     client = TestClient(app)
 

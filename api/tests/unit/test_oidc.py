@@ -42,7 +42,16 @@ def auth(keypair):
 
 
 def test_valid_token_yields_principal(keypair, auth):
-    assert auth.principal(_token(keypair[0])) == "cust-okafor"
+    # G2-05: principal is the immutable `sub`, not the mutable preferred_username.
+    assert auth.principal(_token(keypair[0])) == "uuid-1"
+
+
+def test_principal_is_sub_not_username(keypair, auth):
+    # G2-05: two tokens sharing a preferred_username but differing in `sub` are
+    # distinct principals — a renamed/reused username can't inherit access.
+    a = auth.principal(_token(keypair[0], sub="uuid-a", preferred_username="rivera"))
+    b = auth.principal(_token(keypair[0], sub="uuid-b", preferred_username="rivera"))
+    assert a == "uuid-a" and b == "uuid-b"
 
 
 def test_tampered_token_rejected(keypair, auth):

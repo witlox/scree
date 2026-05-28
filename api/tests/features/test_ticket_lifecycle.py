@@ -24,7 +24,7 @@ def world() -> dict:
 def client(world) -> TestClient:
     authority = TicketAuthority(world["fga"], world["agents"])
     return TestClient(
-        create_app(DocStore([]), Authority({}), ticket_store=world["store"], ticket_authority=authority)
+        create_app(DocStore([]), Authority({}), ticket_store=world["store"], ticket_authority=authority, allow_insecure_header_auth=True)
     )
 
 

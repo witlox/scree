@@ -14,7 +14,7 @@ from scree.servicedesk.store import TicketStore
 def _client():
     store = TicketStore()
     authority = TicketAuthority(FakeOpenFga(), {"agent:dani"})
-    app = create_app(DocStore([]), Authority({}), ticket_store=store, ticket_authority=authority)
+    app = create_app(DocStore([]), Authority({}), ticket_store=store, ticket_authority=authority, allow_insecure_header_auth=True)
     return TestClient(app)
 
 

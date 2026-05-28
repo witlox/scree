@@ -45,7 +45,9 @@ class OidcAuthenticator:
             )
         except Exception as exc:
             raise AuthError(str(exc)) from exc
-        principal = claims.get("preferred_username") or claims.get("sub")
+        # G2-05: key authorization on the immutable `sub`, not the mutable
+        # `preferred_username` (which can be renamed/reused).
+        principal = claims.get("sub")
         if not principal:
-            raise AuthError("no principal claim")
+            raise AuthError("no sub claim")
         return str(principal)

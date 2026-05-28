@@ -9,6 +9,7 @@ CI stays green."""
 import time
 
 import httpx
+import jwt
 import pytest
 
 pytest.importorskip("testcontainers.core.container")
@@ -128,8 +129,14 @@ def authenticator(keycloak):
     )
 
 
+def _sub(token: str) -> str:
+    return jwt.decode(token, options={"verify_signature": False})["sub"]
+
+
 def test_real_token_yields_principal(keycloak, authenticator):
-    assert authenticator.principal(_id_token(keycloak)) == USERNAME
+    # G2-05: principal is the immutable `sub`, not preferred_username.
+    token = _id_token(keycloak)
+    assert authenticator.principal(token) == _sub(token)
 
 
 def test_garbage_token_rejected(authenticator):
@@ -148,12 +155,13 @@ def test_wrong_audience_rejected(keycloak):
 
 
 def test_gateway_accepts_bearer_and_ignores_spike_header(keycloak, authenticator):
+    token = _id_token(keycloak)
     store = DocStore([Doc(id="doc-a", title="A", space="platform/handbook", body="b")])
-    authority = Authority({USERNAME: {"platform/handbook"}})
+    # G2-05: authority is keyed on the token's immutable `sub`.
+    authority = Authority({_sub(token): {"platform/handbook"}})
     client = TestClient(create_app(store, authority, authenticator=authenticator))
 
-    token = _id_token(keycloak)
-    # Real bearer -> 200 and the doc is visible to rivera.
+    # Real bearer -> 200 and the doc is visible to the subject.
     ok = client.get(
         "/docs",
         headers={"Authorization": f"Bearer {token}", "X-Spike-User": "intruder"},

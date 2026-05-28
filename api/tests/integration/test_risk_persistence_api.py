@@ -11,7 +11,7 @@ from scree.risk.store import RiskStore
 
 def _client():
     authority = Authority({"rivera": {"platform/handbook"}, "okafor": {"org/risk-portfolio"}})
-    return TestClient(create_app(DocStore([]), authority, risk_store=RiskStore()))
+    return TestClient(create_app(DocStore([]), authority, risk_store=RiskStore(), allow_insecure_header_auth=True))
 
 
 def _create(client, user, space, category="delivery", likelihood=3, impact=3):

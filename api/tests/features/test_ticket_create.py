@@ -23,7 +23,7 @@ def world() -> dict:
 def client() -> TestClient:
     authority = TicketAuthority(FakeOpenFga(), set())
     return TestClient(
-        create_app(DocStore([]), Authority({}), ticket_store=TicketStore(), ticket_authority=authority)
+        create_app(DocStore([]), Authority({}), ticket_store=TicketStore(), ticket_authority=authority, allow_insecure_header_auth=True)
     )
 
 
