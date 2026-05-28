@@ -2,7 +2,10 @@ import uuid
 from dataclasses import replace
 
 from scree.access.ticket_authority import TicketAuthority
+from scree.integration.o365.inbound import InboundEmail
 
+from .comments import CommentStore, TicketComment
+from .email_routing import requester_of, route_inbound
 from .lifecycle import transition
 from .models import Origin, Ticket, TicketStatus
 from .store import TicketStore
@@ -24,28 +27,68 @@ class TicketService:
     """Ticket lifecycle (INV-LC-1/2): transitions, who may perform them, and
     community-visibility rules."""
 
-    def __init__(self, store: TicketStore, authority: TicketAuthority) -> None:
+    def __init__(
+        self,
+        store: TicketStore,
+        authority: TicketAuthority,
+        comment_store: CommentStore | None = None,
+    ) -> None:
         self._store = store
         self._authority = authority
+        self._comments = comment_store
 
-    def create(self, origin: Origin, requester: str, space: str = "support/service-desk") -> Ticket:
+    def create(
+        self,
+        origin: Origin,
+        requester: str,
+        space: str = "support/service-desk",
+        *,
+        email_message_id: str | None = None,
+    ) -> Ticket:
         """Create a ticket from any origin, normalized to one record: opaque
         requester (INV-DP-1), status open. Tickets default requester-private even
         from public Slack threads (DD-013)."""
         # DD-013: tickets default requester-private regardless of origin (even a
         # public Slack thread); promotion to community-visible is explicit.
+        tid = f"ticket-{uuid.uuid4().hex[:8]}"
         ticket = Ticket(
-            id=f"ticket-{uuid.uuid4().hex[:8]}",
+            id=tid,
             requester=requester,
             space=space,
             status="open",
             origin=origin,
             community_visible=False,
+            # email_token lets later replies thread when headers are stripped.
+            email_token=f"SCREE-{tid.split('-')[1]}" if origin == "email" else None,
+            email_message_id=email_message_id,
         )
         self._store.put(ticket)
         # I-01: grant the requester their viewer relation so they can read it.
         self._authority.grant(requester, "requester", ticket.id)
         return ticket
+
+    def ingest_email(self, email: InboundEmail) -> dict:
+        """Normalize an inbound email to the ticket model (multi-origin), threading
+        on headers/token but enforcing INV-EMAIL-1: append only for a verified
+        sender matching the requester, else quarantine; no match → a new ticket."""
+        route = route_inbound(email, self._store.all())
+        if route.action == "quarantine":
+            # Held for agent review, not attributed (INV-EMAIL-1). A valid outcome,
+            # not an error: the mail is accepted but not threaded.
+            return {"action": "quarantine", "ticket": route.ticket_id, "reason": route.reason}
+        if route.action == "append":
+            self._append(route.ticket_id, requester_of(email), email)
+            return {"action": "append", "ticket": route.ticket_id}
+        ticket = self.create("email", requester_of(email), email_message_id=email.message_id)
+        self._append(ticket.id, requester_of(email), email)
+        return {"action": "new", "ticket": ticket.id}
+
+    def _append(self, ticket_id: str, author: str, email: InboundEmail) -> None:
+        if self._comments is not None:
+            self._comments.add(TicketComment(
+                ticket_id=ticket_id, author=author, body=email.body,
+                source="email", message_id=email.message_id,
+            ))
 
     def _load(self, ticket_id: str) -> Ticket:
         ticket = self._store.get(ticket_id)
