@@ -52,11 +52,13 @@ class ErasureService:
         ticket_authority: TicketAuthority,
         quarantine: QuarantineStore | None = None,
         receipts: ErasureReceiptStore | None = None,
+        crypto=None,
     ) -> None:
         self._identity = identity
         self._authority = ticket_authority
         self._quarantine = quarantine
         self._receipts = receipts
+        self._crypto = crypto
 
     def erase(self, opaque_id: str, actor: str | None = None) -> dict:
         """Idempotent: erasing an unknown/already-erased id is a no-op success."""
@@ -69,11 +71,14 @@ class ErasureService:
         quarantine_purged = (
             self._quarantine.purge_sender(email) if (email and self._quarantine) else 0
         )
+        if self._crypto is not None:
+            self._crypto.destroy(opaque_id)  # crypto-shred: encrypted bodies now unrecoverable
         result = {
             "erased": opaque_id,
             "identity_removed": identity_removed,
             "relations_purged": relations_purged,
             "quarantine_purged": quarantine_purged,
+            "crypto_shredded": self._crypto is not None,
             "residual": RESIDUAL_NOTE,
         }
         if self._receipts is not None:  # G5-03: durable compliance receipt
