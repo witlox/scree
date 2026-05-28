@@ -6,8 +6,10 @@ from pydantic import BaseModel, Field
 
 from scree.access.audit import AuditSink
 from scree.access.authority import Authority
+from scree.access.gitlab import SpaceAuthority
 from scree.access.oidc import AuthError, OidcAuthenticator
 from scree.access.ticket_authority import TicketAuthority
+from scree.access.token_exchange import TokenExchanger
 from scree.knowledge.doc_service import (
     Conflict,
     DocService,
@@ -116,6 +118,9 @@ def create_app(
     ticket_crypto: TicketCrypto | None = None,
     planning_index: PlanningIndex | None = None,
     planning_authority: PlanningAuthority | None = None,
+    gitlab_authority: SpaceAuthority | None = None,
+    token_exchanger: TokenExchanger | None = None,
+    gitlab_audience: str = "gitlab",
     audit: AuditSink | None = None,
     allow_insecure_header_auth: bool = False,
 ) -> FastAPI:
@@ -170,16 +175,48 @@ def create_app(
         if authenticator is not None:
             if not authorization or not authorization.lower().startswith("bearer "):
                 raise HTTPException(status_code=401, detail="missing bearer token")
+            bearer = authorization.split(" ", 1)[1]
             try:
-                principal = authenticator.principal(authorization.split(" ", 1)[1])
+                principal = authenticator.principal(bearer)
             except AuthError:
                 raise HTTPException(status_code=401, detail="invalid token")
+            if token_exchanger is not None:
+                # I-03: trade the inbound token for a GitLab-scoped one (RFC 8693),
+                # so the Gateway resolves authority as the user against GitLab.
+                try:
+                    request.state.gitlab_token = token_exchanger.exchange(bearer, gitlab_audience)
+                except AuthError:
+                    raise HTTPException(status_code=401, detail="token exchange failed")
         elif allow_insecure_header_auth and x_spike_user:
             principal = x_spike_user  # spike/dev only (gated by allow_insecure_header_auth)
+            if gitlab_authority is not None:
+                request.state.gitlab_token = x_spike_user  # dev: header doubles as the GitLab token
         else:
             raise HTTPException(status_code=401, detail="no identity")
         request.state.principal = principal  # I-08: record for the audit sink
         return principal
+
+    def _readable_spaces(principal: str, request: Request) -> set[str]:
+        # Composed authority: real GitLab membership when configured (resolved ONCE
+        # per request, AR-08), else the spike stub. Closes I-03 wiring.
+        if gitlab_authority is not None:
+            cached = getattr(request.state, "readable_spaces", None)
+            if cached is None:
+                token = getattr(request.state, "gitlab_token", None)
+                cached = gitlab_authority.readable_spaces(token) if token else set()
+                request.state.readable_spaces = cached
+            return cached
+        return authority.readable_spaces(principal)
+
+    def _readable_groups(principal: str, request: Request) -> set[str]:
+        if gitlab_authority is not None:
+            cached = getattr(request.state, "readable_groups", None)
+            if cached is None:
+                token = getattr(request.state, "gitlab_token", None)
+                cached = gitlab_authority.readable_groups(token) if token else set()
+                request.state.readable_groups = cached
+            return cached
+        return planning_authority.readable_groups(principal) if planning_authority else set()
 
     @app.post("/risks/assess")
     def assess_risk(
@@ -212,8 +249,8 @@ def create_app(
             return _risk_view(risk)
 
         @app.get("/risks")
-        def list_risks(principal: str = Depends(get_principal)) -> list[dict]:
-            readable = authority.readable_spaces(principal)  # INV-AGG over risks
+        def list_risks(request: Request, principal: str = Depends(get_principal)) -> list[dict]:
+            readable = _readable_spaces(principal, request)  # INV-AGG over risks
             return [_risk_view(r) for r in risk_store.all() if r.space in readable]
 
     @app.post("/orphans/refresh")
@@ -248,20 +285,17 @@ def create_app(
 
         @app.get("/planning/portfolio")
         def portfolio_rollup(
+            request: Request,
             principal: str = Depends(get_principal),
             limit: int = Query(default=100, ge=1, le=500),  # G3-02: bound the page
             cursor: int = Query(default=0, ge=0),
         ) -> dict:
             # AR-08: resolve the readable groups ONCE, then filter every candidate.
-            readable = planning_authority.readable_groups(principal)
+            # With the composed GitLab authority configured, this is LIVE group
+            # membership (closing the G3-01 stale-group window); else the stub.
+            readable = _readable_groups(principal, request)
             # INV-AGG: drop epics the viewer can't see entirely — no count/title/
             # capacity leak (indexer-design step 4); totals derive from visible only.
-            #
-            # G3-01 (accepted, bounded): an epic's group is taken from the index
-            # (as of the last refresh), not live GitLab, so a group MOVE opens a
-            # visibility-staleness window until reindex. It is disclosed via
-            # as_of/never_indexed and closes when the real GitLab-group authority
-            # replaces this stub (PR #54 follow-up); see impl-gate-3.md G3-01.
             visible = [e for e in planning_index.candidates() if e.group in readable]
             result = portfolio(visible, limit=limit, cursor=cursor)
             as_of = planning_index.as_of()
@@ -270,15 +304,16 @@ def create_app(
             return result
 
     @app.get("/docs")
-    def list_docs(principal: str = Depends(get_principal)) -> list[dict]:
+    def list_docs(request: Request, principal: str = Depends(get_principal)) -> list[dict]:
         # INV-AGG: filter EVERY item by the requester's authority, per request.
+        readable = _readable_spaces(principal, request)
         return [{"id": d.id, "title": d.title, "space": d.space}
-                for d in store.all() if authority.can_read(principal, d)]
+                for d in store.all() if d.space in readable]
 
     @app.get("/docs/{doc_id}")
-    def get_doc(doc_id: str, principal: str = Depends(get_principal)) -> dict:
+    def get_doc(doc_id: str, request: Request, principal: str = Depends(get_principal)) -> dict:
         d = store.get(doc_id)
-        if d is None or not authority.can_read(principal, d):
+        if d is None or d.space not in _readable_spaces(principal, request):
             raise HTTPException(status_code=404)  # existence-leak-safe
         return {"id": d.id, "title": d.title, "space": d.space, "body": d.body}
 
