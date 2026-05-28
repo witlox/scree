@@ -3,7 +3,7 @@ from fastapi import Body, Depends, FastAPI, Header, HTTPException
 from scree.access.authority import Authority
 from scree.access.oidc import AuthError, OidcAuthenticator
 from scree.access.ticket_authority import TicketAuthority
-from scree.knowledge.doc_service import DocService, MRRequired
+from scree.knowledge.doc_service import Conflict, DocService, DuplicateId, MRRequired, WrongKind
 from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.store import DocStore
@@ -90,16 +90,21 @@ def create_app(
         def write_doc(
             path: str = Body(..., embed=True),
             content: str = Body(..., embed=True),
+            base_rev: str | None = Body(default=None, embed=True),
             principal: str = Depends(get_principal),
         ) -> dict:
             try:
-                return doc_writer.write(path, content, principal)
-            except InvalidFrontmatter:
-                raise HTTPException(status_code=422, detail="invalid frontmatter")
+                return doc_writer.write(path, content, principal, base_rev)
+            except (InvalidFrontmatter, WrongKind):
+                raise HTTPException(status_code=422, detail="invalid document")
             except DocForbidden:
                 raise HTTPException(status_code=403)
             except MRRequired:
                 raise HTTPException(status_code=409, detail="MR required (governed path)")
+            except DuplicateId:
+                raise HTTPException(status_code=409, detail="id already in use")
+            except Conflict:
+                raise HTTPException(status_code=409, detail="stale base revision")
 
     if ticket_store is not None and ticket_authority is not None:
 

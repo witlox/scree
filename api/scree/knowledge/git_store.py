@@ -48,6 +48,15 @@ class GitBackedDocStore:
             check=True, capture_output=True,
         )
 
+    def rev(self, rel_path: str) -> str | None:
+        """Current revision (last commit sha) for a path, or None if untracked.
+        Used for optimistic concurrency (INV-ST-6)."""
+        out = subprocess.run(
+            ["git", "-C", str(self._root), "log", "-1", "--format=%H", "--", rel_path],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        return out or None
+
     def get(self, doc_id: str) -> Doc | None:
         return next((d for d in self._iter_docs() if d.id == doc_id), None)
 

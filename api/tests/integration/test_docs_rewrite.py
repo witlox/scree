@@ -28,6 +28,10 @@ def _client(repo):
 def test_rewriting_identical_content_is_a_noop(repo):
     client = _client(repo)
     h = {"X-Spike-User": "writer"}
-    assert client.post("/docs", json={"path": "docs/rw.md", "content": DOC}, headers=h).status_code == 200
-    # Identical second write must not 500.
-    assert client.post("/docs", json={"path": "docs/rw.md", "content": DOC}, headers=h).status_code == 200
+    r1 = client.post("/docs", json={"path": "docs/rw.md", "content": DOC}, headers=h)
+    assert r1.status_code == 200
+    # Identical second write (with current rev) is a clean no-op, not a 500.
+    r2 = client.post(
+        "/docs", json={"path": "docs/rw.md", "content": DOC, "base_rev": r1.json()["rev"]}, headers=h
+    )
+    assert r2.status_code == 200
