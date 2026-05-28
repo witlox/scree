@@ -1,0 +1,15 @@
+[project]
+name = "scree-api"
+version = "0.0.0"
+description = "Scree gateway (spike)"
+requires-python = ">=3.12"
+dependencies = ["fastapi", "httpx", "pytest", "pytest-bdd"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "api: scenarios bound at the Gateway API layer",
+    "e2e: end-to-end browser scenarios",
+    "contract: scenarios against real disposable services",
+]
