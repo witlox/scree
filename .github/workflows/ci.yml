@@ -75,3 +75,21 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  web-e2e:
+    name: web-e2e (@e2e journeys)
+    # Drives the real feature islands in a browser against the canonical *.feature
+    # @e2e scenarios (Playwright across desktop + mobile; API is route-mocked).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test
