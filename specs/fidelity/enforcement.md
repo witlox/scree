@@ -1,10 +1,15 @@
 # Phase 3 — Decision & invariant enforcement
 
-> **Post-fix note (2026-05-29):** this table is the *baseline* measurement. The
-> `fix/auditor-findings` branch subsequently moved several rows to ENFORCED —
-> INV-ST-4/5/6, INV-ACC-4, INV-ACC-5 (bounded), INV-ENC-3, INV-LC-2, and added the
-> token-exchange/GitLab-pagination `@contract`s. See `gaps.md` → Resolution for the
-> per-invariant deltas.
+> **Post-fix / refresh note (2026-05-29):** this table is the *baseline*. Subsequent
+> work moved many rows to ENFORCED. From the auditor-findings fix: INV-ST-4/5/6,
+> INV-ACC-4, INV-ACC-5 (bounded), INV-ENC-3, INV-LC-2, + token-exchange/GitLab-pagination
+> `@contract`s. From #79: **INV-ST-1 (risks now Git commits)**, **INV-ST-2 (risk store
+> rebuildable)**, **INV-ID-3 (audit hash-chained / tamper-evident)**. From #84:
+> **INV-IX-1/2/3/4** (real indexer — webhook/batch triggers, redundancy, sensitive
+> partition, rate-limited manual). From #86: **INV-EMAIL-1 verdict source** (trusted A-R,
+> forged distrusted). Still DOCUMENTED/config-only: INV-GOV-1 (deploy), INV-LC-3
+> (close-via-MR endpoint not built), INV-ENC-4 (`age` rotation, scope), INV-REF-3/5
+> (render layer), INV-ID-4 (commit trailer — tickets still in-memory). See `gaps.md`.
 
 Per invariant: is there a test that **fails if it is violated**? ENFORCED (yes, against real/faithful code) · DOCUMENTED (asserted only shallowly, or mechanism is config with no test) · UNENFORCED (no failing test). Critical invariants per `specs/invariants.md`: INV-AGG, INV-ACC-*, INV-ID-2.
 

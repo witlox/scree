@@ -1,5 +1,17 @@
 # Phase 4 — Gaps, cross-cutting, priority
 
+> **Refresh status (2026-05-29).** Of the original 24 gaps, **most are resolved**
+> (see the per-gap ✅ annotations + the Resolution section below). The frontend was
+> separately measured (`frontend.md`) and its adversary gate (Frontend Gate 1, 10
+> findings) fully resolved. **Still open — none are substantive code gaps:**
+> G-A1 *(partial — risk no-leak done; search-view binding remains, ties to G-D2)*,
+> G-A3 (GitLab branch-protection — deploy config), G-A6/#83 (closed-risk-via-MR endpoint —
+> now buildable on Git-backed risks), G-A12 (`age` break-glass — v1 scope question),
+> G-A13 (reference-render feature), G-A15 (commit trailer — blocked on ticket Git
+> persistence), G-D1/#97 (Playwright e2e), G-D2/#98 (bind canonical features). Top
+> cross-cutting gate: **live browser + Keycloak + GitLab verification** (what the mocked
+> tests and the nightly-only `@contract` tier cannot prove — FE-01 was the proof).
+
 Ranked by blast radius if the unenforced behavior breaks. Each gap routes to the implementer as a `type:bug` / `phase:auditor` issue (the auditor measures; it does not fix). IDs: **G-A** authz/correctness, **G-B** boundary, **G-C** infra/over-stub, **G-D** cross-cutting.
 
 ## Critical / High
