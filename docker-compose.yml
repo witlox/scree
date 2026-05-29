@@ -28,9 +28,9 @@ services:
       # OPENFGA_MODEL_ID: ${SCREE_OPENFGA_MODEL_ID}
       # SCREE_DOCS_REPO: /repos/docs        # a Git clone of the knowledge repo
       # SCREE_RISKS_REPO: /repos/risks
-      # SCREE_TICKETS_REPO: /repos/tickets  # tickets + comment threads (Git-backed)
+      # SCREE_TICKETS_REPO: /repos/tickets  # tickets + comments + attachments (Git, LFS)
       # SCREE_IDENTITY_DB: /data/identity.json   # email<->opaque map, OFF Git (PII)
-      # SCREE_ATTACHMENTS_DIR: /data/attachments # object storage, not Git
+      # SCREE_ATTACHMENTS_DIR: /data/attachments # S3/object-store ALTERNATIVE to LFS
       # SCREE_SERVICE_PRINCIPALS: svc:poller,svc:slackbot,svc:indexer,svc:migrator
       # SCREE_COMPLIANCE_PRINCIPALS: dpo:alice
       # SCREE_AGENT_PRINCIPALS: agent:dani

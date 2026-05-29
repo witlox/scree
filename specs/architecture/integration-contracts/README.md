@@ -63,9 +63,14 @@ hold no privileged backend access (DD-006).
 - **Auth:** Slack app token; verify request signatures.
 - **Failure:** unreachable → capture unavailable; other origins unaffected (FM-7/8).
 
-## Object storage (attachments)
+## Attachments (Git LFS default; object storage alternative)
 
-- **Used for:** external service-desk attachments (DD-002 — not Git LFS).
+- **DD-002 (revised):** attachments default to **Git LFS** on the ticket repo
+  (`tickets/<id>/attachments/`), so the service-desk record is uniform with the
+  ticket/comment store. **S3-compatible object storage** is the configurable
+  alternative (`SCREE_ATTACHMENTS_DIR`). On a born-encrypted ticket the attachment is
+  stored as per-requester ciphertext, so a GDPR crypto-shred erases it (INV-DP-2),
+  which is what makes Git-LFS (permanent history) acceptable for sensitive uploads.
 - **Failure:** ticket text still created; attachment upload retried; failure surfaced
   to the requester (FM-14).
 

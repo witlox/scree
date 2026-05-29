@@ -50,7 +50,8 @@ missing (it raises at startup rather than degrading silently). Required: the
 | **OpenFGA** | ticket ReBAC (who-can-see-which-ticket) | yes |
 | **O365 / Graph** | inbound email intake (a separate poller posts verified mail to the gateway) | for email |
 | **Slack** | one public community channel; `:ticket:` capture | for Slack |
-| **Object storage** | external ticket attachments (not Git) | for attachments |
+| **Git LFS** | ticket attachments on the ticket repo (default) | for attachments |
+| **Object storage** | ticket attachments — S3-compatible *alternative* to LFS | optional |
 
 ## Data & backups
 
@@ -62,16 +63,23 @@ point it at a path; leave the path unset and it falls back to an **in-memory** s
 |---|---|---|
 | Knowledge (docs) | `SCREE_DOCS_REPO` | Git working clone |
 | Risks | `SCREE_RISKS_REPO` | Git working clone |
-| **Tickets + comments** | `SCREE_TICKETS_REPO` | Git clone (`tickets/<id>.md` + `tickets/<id>/comments/`) |
+| **Tickets + comments + attachments** | `SCREE_TICKETS_REPO` | Git clone (`tickets/<id>.md`, `…/comments/`, `…/attachments/` via LFS) |
 | **Customer identity map** | `SCREE_IDENTITY_DB` | JSON file, **off Git** (holds PII) |
-| **Attachments** | `SCREE_ATTACHMENTS_DIR` | object store (mounted bucket / MinIO) |
+| **Attachments (alternative)** | `SCREE_ATTACHMENTS_DIR` | S3/object store, *if set* — overrides the LFS default |
 
 - **Back up those repositories and paths** (or rely on GitLab's own backups for the
   doc/risk projects they clone). The on-disk search index is **derived and
   rebuildable** from Git; you never back it up.
-- Ticket/comment mutations are commits by the **desk service account**, with the
-  human recorded in an `On-Behalf-Of` commit trailer (INV-ID-4). The requester on a
-  ticket is an **opaque id** — no PII enters Git (INV-DP-1).
+- Ticket/comment/attachment mutations are commits by the **desk service account**,
+  with the human recorded in an `On-Behalf-Of` commit trailer (INV-ID-4). The
+  requester on a ticket is an **opaque id** — no PII enters Git (INV-DP-1).
+- **Attachments default to Git LFS** on the ticket repo (`tickets/<id>/attachments/`).
+  Run `git lfs install` in that repo once and ensure an LFS endpoint is configured;
+  the app writes a `.gitattributes` LFS rule for the attachment paths automatically.
+  Prefer S3? Set `SCREE_ATTACHMENTS_DIR` (a mounted bucket / MinIO) and it's used
+  instead. Attachments on a **born-encrypted ticket** are stored as per-requester
+  ciphertext, so a GDPR crypto-shred erases them — which is what makes permanent-history
+  LFS acceptable for sensitive uploads (INV-DP-2).
 - The **identity map** (`SCREE_IDENTITY_DB`) is the only place customer emails live;
   keep it on a **private, encrypted-at-rest volume**, never in a repo. GDPR erasure
   rewrites it.
@@ -79,12 +87,13 @@ point it at a path; leave the path unset and it falls back to an **in-memory** s
   chain to WORM / append-only storage with retention (the integrity mechanism is in
   the app, the durable medium is your deployment choice).
 
-> **Residual.** The attachment store is filesystem-backed today (a mounted
-> object-storage volume); a native S3/MinIO client is a drop-in follow-up. Portal
+> **Residual.** When the S3 alternative is selected it is filesystem-backed today (a
+> mounted bucket); a native S3/MinIO client is a drop-in follow-up. Portal
 > **notification preferences** are still in-memory (low-stakes, regenerated on use).
-> If you leave `SCREE_TICKETS_REPO` / `SCREE_IDENTITY_DB` / `SCREE_ATTACHMENTS_DIR`
-> unset, the service-desk side runs in-memory and is **ephemeral** — set all three
-> before running external customer support in production.
+> If you leave `SCREE_TICKETS_REPO` / `SCREE_IDENTITY_DB` unset, the service-desk side
+> runs in-memory and is **ephemeral** — set them (and configure LFS on the ticket
+> repo, or `SCREE_ATTACHMENTS_DIR`) before running external customer support in
+> production.
 
 ## Migration (big-bang cutover)
 

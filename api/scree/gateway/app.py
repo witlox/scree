@@ -774,14 +774,16 @@ def create_app(
         @app.post("/tickets/{ticket_id}/attachments", response_model=AttachmentOut)
         def add_attachment(ticket_id: str, body: AttachmentIn,
                            principal: str = Depends(get_principal)) -> dict:
-            _attachment_ticket(ticket_id, principal)
+            t = _attachment_ticket(ticket_id, principal)
             if not _safe_attachment(body.filename):  # G11-03: reject executable types
                 raise HTTPException(status_code=415, detail="attachment type not allowed")
-            raw = body.content.encode("utf-8")
-            if len(raw) > MAX_COMMENT_BYTES:
+            if len(body.content.encode("utf-8")) > MAX_COMMENT_BYTES:
                 raise HTTPException(status_code=413, detail="attachment too large")
-            # Stored in OBJECT STORAGE, not Git (external-attachment decision).
-            att = attachments.put(ticket_id, body.filename, raw)
+            # ADR-0005: an attachment on a born-encrypted ticket is stored as per-requester
+            # ciphertext, so GDPR erasure's crypto-shred makes it unrecoverable like the body.
+            # (DD-002 revised: attachments default to Git LFS on the ticket repo, S3 alternative.)
+            stored = crypto.encrypt(t.requester, body.content).encode("utf-8") if t.encrypted else body.content.encode("utf-8")
+            att = attachments.put(ticket_id, body.filename, stored)
             return {"filename": att.filename, "object_key": att.object_key}
 
         @app.get("/tickets/{ticket_id}/attachments", response_model=list[AttachmentOut])

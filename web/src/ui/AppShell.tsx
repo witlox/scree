@@ -2,13 +2,14 @@ import type { ReactNode } from "react";
 
 import { SessionControls } from "../auth/SessionControls";
 
-/** Top-level information architecture: the four product surfaces. Links resolve to
- *  their (server-routed) pages; surfaces are separate islands per ADR-0003. */
+/** Top-level information architecture: the product surfaces. Each is a separate
+ *  island (ADR-0003); the links use the `?island=` launcher convention so the bundle
+ *  is self-navigable (a real htmx deployment can repoint these at its host pages). */
 const SECTIONS = [
-  { key: "knowledge", label: "Knowledge", href: "/docs" },
-  { key: "desk", label: "Service desk", href: "/desk" },
-  { key: "portfolio", label: "Portfolio & risk", href: "/portfolio" },
-  { key: "admin", label: "Admin", href: "/admin" },
+  { key: "knowledge", label: "Knowledge", href: "/?island=docs" },
+  { key: "desk", label: "Service desk", href: "/?island=admin" },
+  { key: "portfolio", label: "Portfolio & risk", href: "/?island=portfolio" },
+  { key: "admin", label: "Admin", href: "/?island=admin" },
 ] as const;
 
 export type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -27,7 +28,10 @@ export function AppShell({
   return (
     <div className="app-shell">
       <header className="app-shell__bar">
-        <span className="app-shell__brand">Scree</span>
+        <span className="app-shell__brand">
+          <img src="/logo.png" alt="" className="app-shell__logo" />
+          Scree
+        </span>
         <nav className="app-shell__nav" aria-label="Primary">
           {SECTIONS.map((s) => (
             <a key={s.key} href={s.href} aria-current={current === s.key ? "page" : undefined}>
