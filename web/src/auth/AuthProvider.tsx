@@ -14,7 +14,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <OidcProvider
       authority={cfg.authority}
       client_id={cfg.client_id}
-      redirect_uri={window.location.origin + window.location.pathname}
+      redirect_uri={cfg.redirect_uri}
+      post_logout_redirect_uri={cfg.redirect_uri}
       scope="openid profile email"
       automaticSilentRenew
       userStore={new WebStorageStateStore({ store: window.sessionStorage })}

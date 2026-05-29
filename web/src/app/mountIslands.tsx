@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { AuthGate } from "../auth/AuthGate";
 import { AuthProvider } from "../auth/AuthProvider";
 import { QueryProvider } from "../lib/query/QueryProvider";
+import { ErrorBoundary } from "../ui/ErrorBoundary";
 
 /** Names map to the React components that may be mounted as islands. Feature
  *  surfaces (docs editor, portal, admin) add entries in src/app/islands.ts. */
@@ -26,15 +27,22 @@ export function mountIslands(registry: IslandRegistry, root: ParentNode = docume
       console.warn(`[scree] no island registered for "${name}"`);
       return;
     }
-    const props: Record<string, unknown> = el.dataset.props
-      ? (JSON.parse(el.dataset.props) as Record<string, unknown>)
-      : {};
+    let props: Record<string, unknown> = {};
+    if (el.dataset.props) {
+      try {
+        props = JSON.parse(el.dataset.props) as Record<string, unknown>;
+      } catch {
+        console.warn(`[scree] invalid data-props for island "${name}" — ignoring`); // FE-05
+      }
+    }
     createRoot(el).render(
       <StrictMode>
         <AuthProvider>
           <QueryProvider>
             <AuthGate>
-              <Component {...props} />
+              <ErrorBoundary>
+                <Component {...props} />
+              </ErrorBoundary>
             </AuthGate>
           </QueryProvider>
         </AuthProvider>

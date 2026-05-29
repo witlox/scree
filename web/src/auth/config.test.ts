@@ -14,9 +14,19 @@ describe("oidcConfig", () => {
     expect(oidcConfig()).toBeNull();
   });
 
-  it("returns the config when both vars are set", () => {
+  it("returns the config (with a fixed redirect_uri) when both vars are set", () => {
     vi.stubEnv("VITE_OIDC_AUTHORITY", "https://kc/realms/scree");
     vi.stubEnv("VITE_OIDC_CLIENT_ID", "scree-web");
-    expect(oidcConfig()).toEqual({ authority: "https://kc/realms/scree", client_id: "scree-web" });
+    const cfg = oidcConfig();
+    expect(cfg).toMatchObject({ authority: "https://kc/realms/scree", client_id: "scree-web" });
+    // fixed path (default "/"), origin from jsdom — never the live page pathname (FE-02)
+    expect(cfg?.redirect_uri).toBe(`${window.location.origin}/`);
+  });
+
+  it("honors a configured fixed redirect path", () => {
+    vi.stubEnv("VITE_OIDC_AUTHORITY", "https://kc/realms/scree");
+    vi.stubEnv("VITE_OIDC_CLIENT_ID", "scree-web");
+    vi.stubEnv("VITE_OIDC_REDIRECT_PATH", "/auth/callback");
+    expect(oidcConfig()?.redirect_uri).toBe(`${window.location.origin}/auth/callback`);
   });
 });

@@ -227,17 +227,17 @@ component tests can't see — auth, data flow, robustness.
 
 | ID | Sev | Category | Finding | Status |
 |---|---|---|---|---|
-| FE-01 | **High** | Correctness/security (auth) | First post-login requests carry no bearer (token set in effect after children render) → spurious audited 401s | open |
-| FE-02 | Medium | Security/robustness (auth) | redirect_uri is the live pathname, not a fixed registered callback | open |
-| FE-03 | Medium | Correctness (data loss) | DocEditor saves stale `initial.body` if the lazy editor never initialized | open |
-| FE-04 | Medium | Robustness (auth) | No global 401 → re-auth; expired sessions look like generic load errors | open |
-| FE-05 | Low | Robustness | Unguarded `JSON.parse(data-props)` aborts all island mounts | open |
-| FE-06 | Low | Robustness | No error boundary around islands | open |
-| FE-07 | Low | Security (defense-in-depth) | MarkdownView relies on DOMPurify defaults (no explicit forbid/rel) | open |
-| FE-08 | Low | Robustness/perf | Admin ticket-queue `columns` recreated each render | open |
-| FE-09 | Low | Correctness/UX | Community KB search results aren't actionable (bare ids) | open |
-| FE-10 | Low | Robustness | No request timeout/abort in the API client | open |
+| FE-01 | **High** | Correctness/security (auth) | First post-login requests carry no bearer → spurious audited 401s | ✅ token set synchronously in AuthGate render |
+| FE-02 | Medium | Security/robustness (auth) | redirect_uri is the live pathname, not a fixed registered callback | ✅ fixed origin+VITE_OIDC_REDIRECT_PATH |
+| FE-03 | Medium | Correctness (data loss) | DocEditor saves stale `initial.body` if the lazy editor never initialized | ✅ Save gated on editorReady; throws if not ready |
+| FE-04 | Medium | Robustness (auth) | No global 401 → re-auth; expired sessions look like generic load errors | ✅ QueryCache onError → unauthorized bridge → signinRedirect |
+| FE-05 | Low | Robustness | Unguarded `JSON.parse(data-props)` aborts all island mounts | ✅ try/catch + warn |
+| FE-06 | Low | Robustness | No error boundary around islands | ✅ ErrorBoundary around each island |
+| FE-07 | Low | Security (defense-in-depth) | MarkdownView relies on DOMPurify defaults (no explicit forbid/rel) | ✅ explicit FORBID_* + rel hook + sanitization test |
+| FE-08 | Low | Robustness/perf | Admin ticket-queue `columns` recreated each render | ✅ useMemo |
+| FE-09 | Low | Correctness/UX | Community KB search results aren't actionable (bare ids) | ✅ hits open the ticket |
+| FE-10 | Low | Robustness | No request timeout/abort in the API client | ✅ AbortSignal.timeout (20s) |
 
-**Counts:** 1 high · 3 medium · 6 low — **10 total, open.** Highest-risk: the auth
-seam (FE-01) — invisible to the mocked tests, only manifests against a live
-gateway + Keycloak.
+**Counts:** 1 high · 3 medium · 6 low — **10 total, all resolved (2026-05-29).** Highest-risk
+was the auth seam (FE-01) — invisible to the mocked tests; fixed by syncing the bearer
+before children render.
