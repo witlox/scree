@@ -155,6 +155,39 @@ class RiskViewOut(BaseModel):
     severity: str
     fires_critical_webhook: bool
 
+
+class TicketSummaryOut(BaseModel):
+    id: str
+    requester: str | None  # redacted (None) for community-only viewers (G2-06)
+    status: str
+    assignee: str | None
+    origin: str
+    created_at: str | None
+    community_visible: bool
+
+
+class QuarantineItemOut(BaseModel):
+    claimed_from: str
+    subject: str
+    reason: str | None
+    candidate_ticket: str | None
+
+
+class OrphanReportOut(BaseModel):
+    resources: dict[str, list[str]]  # space -> resource ids
+    tickets: dict[str, list[str]]  # desk -> ticket ids
+    as_of: str | None
+    computed: bool
+
+
+class ErasureReceiptOut(BaseModel):
+    subject: str
+    actor: str
+    at: str
+    identity_removed: bool
+    relations_purged: int
+    quarantine_purged: int
+
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
 LAST_KNOWN_MAX_AGE = 900.0  # G-A2: outage staleness bound (s) before membership fails closed
@@ -442,7 +475,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="no mapping for legacy id")
         return {"legacy_id": legacy_id, "resolved": new_id}
 
-    @app.get("/orphans")
+    @app.get("/orphans", response_model=OrphanReportOut)
     def orphans(principal: str = Depends(get_principal)) -> dict:
         # INV-ORPH: serve the batch-computed report, filtered to the requester's
         # scope — resources to the Space's maintainers, tickets to the desk's leads
@@ -546,15 +579,17 @@ def create_app(
             # a community_visible-only viewer gets None.
             return t.requester if ticket_authority.can_see_identity(principal, t) else None
 
-        @app.get("/tickets")
+        @app.get("/tickets", response_model=list[TicketSummaryOut])
         def list_tickets(principal: str = Depends(get_principal)) -> list[dict]:
             tickets = ticket_store.all()
             readable = ticket_authority.readable_tickets(principal, tickets)
-            return [{"id": t.id, "requester": _requester_for(t, principal)}
+            return [{"id": t.id, "requester": _requester_for(t, principal), "status": t.status,
+                     "assignee": t.assignee, "origin": t.origin, "created_at": t.created_at,
+                     "community_visible": t.community_visible}
                     for t in tickets if t.id in readable]
 
         # Declared before /tickets/{ticket_id} so the static path isn't shadowed.
-        @app.get("/tickets/quarantine")
+        @app.get("/tickets/quarantine", response_model=list[QuarantineItemOut])
         def list_quarantine(principal: str = Depends(get_principal)) -> list[dict]:
             # G4-05: quarantined mail held for agent review.
             if not ticket_authority.is_agent(principal):
@@ -725,7 +760,7 @@ def create_app(
             _check_comment_size(snapshot)  # G8-03
             return service.link_from_slack(reactor, ticket_id, snapshot, slack_dir=slack_dir)
 
-        @app.get("/identities/erasures")
+        @app.get("/identities/erasures", response_model=list[ErasureReceiptOut])
         def list_erasures(principal: str = Depends(get_principal)) -> list[dict]:
             # G5-03: durable erasure receipts for compliance evidence (DPO only).
             if principal not in compliance:

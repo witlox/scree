@@ -535,6 +535,21 @@ export interface components {
             /** Capacity */
             capacity: number;
         };
+        /** ErasureReceiptOut */
+        ErasureReceiptOut: {
+            /** Subject */
+            subject: string;
+            /** Actor */
+            actor: string;
+            /** At */
+            at: string;
+            /** Identity Removed */
+            identity_removed: boolean;
+            /** Relations Purged */
+            relations_purged: number;
+            /** Quarantine Purged */
+            quarantine_purged: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -544,6 +559,21 @@ export interface components {
         MigrationRunIn: {
             /** Items */
             items: components["schemas"]["SourceItemIn"][];
+        };
+        /** OrphanReportOut */
+        OrphanReportOut: {
+            /** Resources */
+            resources: {
+                [key: string]: string[];
+            };
+            /** Tickets */
+            tickets: {
+                [key: string]: string[];
+            };
+            /** As Of */
+            as_of: string | null;
+            /** Computed */
+            computed: boolean;
         };
         /** PortfolioOut */
         PortfolioOut: {
@@ -564,6 +594,17 @@ export interface components {
         PreferenceIn: {
             /** Preference */
             preference: string;
+        };
+        /** QuarantineItemOut */
+        QuarantineItemOut: {
+            /** Claimed From */
+            claimed_from: string;
+            /** Subject */
+            subject: string;
+            /** Reason */
+            reason: string | null;
+            /** Candidate Ticket */
+            candidate_ticket: string | null;
         };
         /** RiskAssessIn */
         RiskAssessIn: {
@@ -664,6 +705,23 @@ export interface components {
             encrypt: boolean;
             /** Body */
             body?: string | null;
+        };
+        /** TicketSummaryOut */
+        TicketSummaryOut: {
+            /** Id */
+            id: string;
+            /** Requester */
+            requester: string | null;
+            /** Status */
+            status: string;
+            /** Assignee */
+            assignee: string | null;
+            /** Origin */
+            origin: string;
+            /** Created At */
+            created_at: string | null;
+            /** Community Visible */
+            community_visible: boolean;
         };
         /** TicketTransitionIn */
         TicketTransitionIn: {
@@ -960,9 +1018,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["OrphanReportOut"];
                 };
             };
             /** @description Validation Error */
@@ -1165,9 +1221,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["TicketSummaryOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1237,9 +1291,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["QuarantineItemOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1681,9 +1733,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["ErasureReceiptOut"][];
                 };
             };
             /** @description Validation Error */
