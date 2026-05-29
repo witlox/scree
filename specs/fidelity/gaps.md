@@ -97,7 +97,7 @@ backend-tractable gaps were fixed; the rest are flagged with a concrete blocker
 - **G-B3** — `test_gitlab_pagination.py` exercises `readable_spaces` across an `x-next-page` boundary (`per_page` made configurable).
 
 **Flagged — open, with blocker:**
-- **G-C1** — risk + audit on Git / WORM sink: architecture (RiskStore is a dict; audit sink in-memory). Needs a Git-backed risk store + tamper-evident sink.
+- **G-C1** — ✅ **resolved (2026-05-29):** `GitBackedRiskStore` persists risk mutations as Git commits (INV-ST-1) and is rebuildable from Git (INV-ST-2); the `AuditSink` is now hash-chained and tamper-evident with `verify()` (INV-ID-3 integrity, AR-10). The durable WORM *medium* remains a deploy concern; the integrity *mechanism* is in code. Unblocks **G-A6/#83** (close-via-MR now has a Git-backed risk to gate).
 - **G-A6** — closed-risk-via-MR: blocked on G-C1 (risks not on Git).
 - **G-A15** — external-write desk-SA commit trailer: blocked on ticket Git persistence.
 - **G-A3** — INV-GOV-1: real enforcement is GitLab branch protection + CODEOWNERS on the *runtime data repos*, not this build repo; a CODEOWNERS here would enforce nothing. Deploy concern + a CODEOWNERS template is the right artifact.
