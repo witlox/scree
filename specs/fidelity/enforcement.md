@@ -1,5 +1,11 @@
 # Phase 3 — Decision & invariant enforcement
 
+> **Post-fix note (2026-05-29):** this table is the *baseline* measurement. The
+> `fix/auditor-findings` branch subsequently moved several rows to ENFORCED —
+> INV-ST-4/5/6, INV-ACC-4, INV-ACC-5 (bounded), INV-ENC-3, INV-LC-2, and added the
+> token-exchange/GitLab-pagination `@contract`s. See `gaps.md` → Resolution for the
+> per-invariant deltas.
+
 Per invariant: is there a test that **fails if it is violated**? ENFORCED (yes, against real/faithful code) · DOCUMENTED (asserted only shallowly, or mechanism is config with no test) · UNENFORCED (no failing test). Critical invariants per `specs/invariants.md`: INV-AGG, INV-ACC-*, INV-ID-2.
 
 ## Storage & truth

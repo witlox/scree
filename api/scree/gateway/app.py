@@ -1,3 +1,4 @@
+import time
 import uuid
 
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
@@ -15,6 +16,7 @@ from scree.knowledge.doc_service import (
     Conflict,
     DocService,
     DuplicateId,
+    IdChanged,
     InvalidPath,
     MRRequired,
     SpaceMismatch,
@@ -96,6 +98,7 @@ class AttachmentIn(BaseModel):
 
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
+LAST_KNOWN_MAX_AGE = 900.0  # G-A2: outage staleness bound (s) before membership fails closed
 
 
 def _check_comment_size(text: str | None) -> None:
@@ -125,6 +128,7 @@ _ERROR_STATUS: dict[type[Exception], int] = {
     Forbidden: 403,
     MRRequired: 409,
     DuplicateId: 409,
+    IdChanged: 409,
     Conflict: 409,
     GitWriteError: 409,
     IllegalTransition: 409,
@@ -213,9 +217,18 @@ def create_app(
     _space_cache: TtlCache[set] = TtlCache(ttl=60.0)
     _group_cache: TtlCache[set] = TtlCache(ttl=60.0)
     # G12-01: last-known membership, served stale-OK while GitLab is unreachable so
-    # authorized reads survive an outage (INV-DEG-1).
-    _last_spaces: dict[str, set] = {}
-    _last_groups: dict[str, set] = {}
+    # authorized reads survive an outage (INV-DEG-1). G-A2: bounded by
+    # LAST_KNOWN_MAX_AGE — past that we fail closed (INV-ACC-5) rather than honor a
+    # possibly-revoked grant for the whole outage. The bound is the explicit point
+    # where availability yields to not-over-exposing; the cached value is timestamped.
+    _last_spaces: dict[str, tuple[set, float]] = {}
+    _last_groups: dict[str, tuple[set, float]] = {}
+
+    def _last_known(store: dict[str, tuple[set, float]], token: str) -> set:
+        entry = store.get(token)
+        if entry is None or (time.monotonic() - entry[1]) > LAST_KNOWN_MAX_AGE:
+            return set()  # fail closed: no membership, or staler than the bound
+        return entry[0]
 
     for exc_type, status in _ERROR_STATUS.items():
         app.add_exception_handler(exc_type, _make_handler(status))
@@ -278,11 +291,11 @@ def create_app(
                 return set()
             cached = _space_cache.get(token)
             if cached is None:
-                if not health.gitlab_up:  # G12-01: outage → serve last-known (stale-OK)
-                    return _last_spaces.get(token, set())
+                if not health.gitlab_up:  # G12-01: outage → serve last-known (bounded)
+                    return _last_known(_last_spaces, token)
                 cached = gitlab_authority.readable_spaces(token)
                 _space_cache.put(token, cached)
-                _last_spaces[token] = cached
+                _last_spaces[token] = (cached, time.monotonic())
             return cached
         return authority.readable_spaces(principal)
 
@@ -293,11 +306,11 @@ def create_app(
                 return set()
             cached = _group_cache.get(token)
             if cached is None:
-                if not health.gitlab_up:  # G12-01: outage → serve last-known (stale-OK)
-                    return _last_groups.get(token, set())
+                if not health.gitlab_up:  # G12-01: outage → serve last-known (bounded)
+                    return _last_known(_last_groups, token)
                 cached = gitlab_authority.readable_groups(token)
                 _group_cache.put(token, cached)
-                _last_groups[token] = cached
+                _last_groups[token] = (cached, time.monotonic())
             return cached
         return planning_authority.readable_groups(principal) if planning_authority else set()
 
@@ -507,6 +520,11 @@ def create_app(
             t = ticket_store.get(ticket_id)
             if t is None or not ticket_authority.can_read(principal, t):
                 raise HTTPException(status_code=404)
+            # INV-LC-2: a community-only viewer (can read solely because the ticket is
+            # community_visible, not a participant) sees the curated snapshot frozen at
+            # promotion — never the live thread, so later private replies don't leak.
+            if t.community_visible and not ticket_authority.can_see_identity(principal, t):
+                return service.community_snapshot(ticket_id)
             # Gateway-mediated decryption (ADR-0008): bodies are ciphertext at rest.
             return service.read_comments(ticket_id)
 
@@ -519,7 +537,9 @@ def create_app(
             for t in ticket_store.all():
                 if not t.community_visible or t.encrypted:
                     continue  # G11-01: never decrypt encrypted content into the public KB
-                bodies = [c["body"] for c in service.read_comments(t.id)]
+                # INV-LC-2: the public KB indexes the curated snapshot, not the live
+                # thread, so a post-promotion private reply never becomes searchable.
+                bodies = [c["body"] for c in service.community_snapshot(t.id)]
                 if any(needle in (b or "").lower() for b in bodies):
                     out.append({"id": t.id})  # requester not disclosed (G2-06)
             return out

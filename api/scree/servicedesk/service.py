@@ -194,6 +194,14 @@ class TicketService:
             source=source, message_id=message_id, encrypted=encrypted,
         ))
 
+    def community_snapshot(self, ticket_id: str) -> list[dict]:
+        """The curated snapshot a community-only viewer sees (INV-LC-2): the frozen
+        thread as of promotion, NOT the live comments. Empty if not promoted."""
+        ticket = self._store.get(ticket_id)
+        if ticket is None or ticket.community_snapshot is None:
+            return []
+        return [{"author": a, "body": b, "source": s} for (a, b, s) in ticket.community_snapshot]
+
     def read_comments(self, ticket_id: str) -> list[dict]:
         """Return a ticket's comments, decrypting encrypted bodies via the Gateway.
         A crypto-shredded body is surfaced as an unrecoverable marker, not raw
@@ -225,9 +233,15 @@ class TicketService:
         if not self._may_work(principal, ticket):
             raise Forbidden(principal)
         new_status = transition(ticket.status, target)
-        # Reopening re-gates a community-visible ticket to private (INV-LC-2).
+        # Reopening re-gates a community-visible ticket to private (INV-LC-2) and
+        # discards the curated snapshot, so a later re-promote rebuilds it fresh.
+        re_gated = ticket.community_visible and new_status == "open"
         community_visible = ticket.community_visible and new_status != "open"
-        updated = replace(ticket, status=new_status, community_visible=community_visible)
+        snapshot = None if re_gated else ticket.community_snapshot
+        updated = replace(
+            ticket, status=new_status, community_visible=community_visible,
+            community_snapshot=snapshot,
+        )
         self._store.put(updated)
         return updated
 
@@ -241,6 +255,11 @@ class TicketService:
             # G11-01: an encrypted (sensitive) ticket must not become a public
             # community snapshot — its content would have to be decrypted into the KB.
             raise NotPromotable(ticket_id)
-        updated = replace(ticket, community_visible=True)
+        # INV-LC-2: freeze a curated snapshot of the thread AS OF promotion. Later
+        # private replies/attachments are not part of it, so they cannot leak.
+        snapshot = tuple(
+            (c["author"], c["body"], c["source"]) for c in self.read_comments(ticket_id)
+        )
+        updated = replace(ticket, community_visible=True, community_snapshot=snapshot)
         self._store.put(updated)
         return updated

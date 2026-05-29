@@ -5,6 +5,9 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    - cron: "0 3 * * *"  # nightly @contract run (boundary-fidelity drift detection)
+  workflow_dispatch:
 
 jobs:
   api-tests:
@@ -20,6 +23,25 @@ jobs:
           uv venv --python 3.13
           uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]"
           .venv/bin/pytest -q
+
+  contract-tests:
+    name: contract-tests
+    # G-B1: the @contract tier boots real services (Keycloak/OpenFGA/Vault) via
+    # testcontainers to catch stub-vs-real drift. Docker-heavy, so it runs nightly
+    # and on-demand rather than blocking every PR. GitLab @contract tests still skip
+    # unless GITLAB_TEST_URL/GITLAB_TEST_TOKEN are provided.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: uv + pytest (@contract)
+        working-directory: api
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv venv --python 3.13
+          uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]" testcontainers
+          .venv/bin/pytest -q -m contract
 
   web-tests:
     name: web-tests
