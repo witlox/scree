@@ -1,0 +1,60 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/witlox/scree
+  # Defaults to the chart appVersion (the released image tag) when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# DEV mode = header auth + in-memory stores, no external services. Set false for
+# production and provide `config` + `existingSecret` below; the gateway fails
+# closed at startup if required production config is missing.
+dev: false
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: scree.example
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Non-secret environment passed to the gateway (see .env.example for the full set).
+# Required in production: the OIDC_*, GITLAB_URL, VAULT_ADDR, OPENFGA_* values.
+config:
+  OIDC_ISSUER: ""
+  OIDC_AUDIENCE: ""
+  OIDC_JWKS_URL: ""
+  OIDC_TOKEN_URL: ""
+  OIDC_CLIENT_ID: ""
+  GITLAB_URL: ""
+  GITLAB_AUDIENCE: "gitlab"
+  VAULT_ADDR: ""
+  OPENFGA_URL: ""
+  OPENFGA_STORE_ID: ""
+  OPENFGA_MODEL_ID: ""
+
+# Name of a pre-existing Secret holding the sensitive vars (OIDC_CLIENT_SECRET,
+# VAULT_TOKEN). Mounted via envFrom so secrets never live in values. Leave empty
+# in dev.
+existingSecret: ""
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}

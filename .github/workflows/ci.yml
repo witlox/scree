@@ -24,6 +24,22 @@ jobs:
           uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]"
           .venv/bin/pytest -q
 
+  bdd:
+    name: bdd (@api scenarios)
+    # The pytest-bdd Gherkin scenarios (api/tests/features) also run inside api-tests;
+    # this surfaces them as their own visible/required check. (@e2e browser BDD: #97.)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: uv + pytest -m api
+        working-directory: api
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+          uv venv --python 3.13
+          uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]"
+          .venv/bin/pytest -q -m api
+
   contract-tests:
     name: contract-tests
     # G-B1: the @contract tier boots real services (Keycloak/OpenFGA/Vault) via
@@ -59,3 +75,21 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  web-e2e:
+    name: web-e2e (@e2e journeys)
+    # Drives the real feature islands in a browser against the canonical *.feature
+    # @e2e scenarios (Playwright across desktop + mobile; API is route-mocked).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test

@@ -1,0 +1,24 @@
+Scree is deployed as {{ include "scree.fullname" . }}.
+
+{{- if .Values.dev }}
+
+WARNING: dev mode is ON (header auth + in-memory stores). Do NOT use in production.
+{{- else }}
+
+Running in production mode. The gateway fails closed if required config is missing
+(OIDC_*, GITLAB_URL, VAULT_ADDR, OPENFGA_*). Ensure `existingSecret` holds
+OIDC_CLIENT_SECRET and VAULT_TOKEN.
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+
+Reachable via ingress:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+The Service is {{ .Values.service.type }} on port {{ .Values.service.port }}. To reach it locally:
+  kubectl port-forward svc/{{ include "scree.fullname" . }} 8000:{{ .Values.service.port }}
+  # then open http://localhost:8000
+{{- end }}

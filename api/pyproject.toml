@@ -8,8 +8,14 @@ dependencies = ["fastapi", "httpx", "pytest", "pytest-bdd", "pyyaml", "pyjwt[cry
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+# The executed BDD set IS the analyst's canonical features (specs/features), not a
+# copy: step modules in tests/features bind them via scenarios(). @api scenarios run
+# in-process here; @contract (real services) and @e2e (browser) are skipped in this
+# tier and run by tests/contract and the Playwright harness respectively.
+bdd_features_base_dir = "../specs/features"
 markers = [
     "api: scenarios bound at the Gateway API layer",
     "e2e: end-to-end browser scenarios",
     "contract: scenarios against real disposable services",
+    "security: security-sensitive scenarios (e.g. INV-AGG leak checks)",
 ]

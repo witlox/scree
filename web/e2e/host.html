@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scree e2e host</title>
+  </head>
+  <body>
+    <!-- e2e host page: mounts ONE feature island chosen by ?island=<name> (with
+         optional ?props=<json>), then loads the real app bundle. This stands in for
+         the htmx/GitLab host pages so the @e2e BDD harness can drive a real island.
+         The inline script runs before the deferred module, so the island node exists
+         when mountIslands() scans the DOM. -->
+    <div id="root"></div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const root = document.getElementById("root");
+      root.setAttribute("data-island", params.get("island") || "");
+      const props = params.get("props");
+      if (props) root.setAttribute("data-props", props);
+    </script>
+    <script type="module" src="/src/app/main.tsx"></script>
+  </body>
+</html>

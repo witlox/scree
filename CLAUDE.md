@@ -35,26 +35,22 @@ The workflow protocol references and graduation criteria are defined in each rol
 
 ## Current phase
 
-**Analyst phase** is starting. The analyst consumes:
+**Release engineering / v1 cutover prep.** The diamond has cycled through every
+role at least once: the analyst specs, architecture, ADRs, backend (`api/`) and
+frontend (`web/`) are built; adversary gates (analyst, architecture, frontend,
+impl 1–12) and the auditor fidelity index are recorded under `specs/findings/`
+and `specs/fidelity/`; the integrator returned a **GO** verdict
+(`specs/integration/readiness.md`).
 
-- `specs/SEED.md` — primary input, defines the problem, constraints, non-goals, hard questions
-- `docs/analysis/design-conversation.md` — distilled design conversation for context
-- `docs/analysis/design-decisions.md` — design decisions ledger with rationale
-- `docs/analysis/prior-art.md` — prior art evaluation
-- `docs/analysis/open-questions.md` — open questions to resolve or escalate
+What's standing up now is the delivery substrate: one-image Docker build, mdBook
+docs → GitHub Pages (generated from specs/features/code by `docs/build.py`),
+grouped Dependabot, a Wednesday-evening release (version `YEAR.ADR-COUNT.COMMIT-COUNT`),
+and a Helm chart (`charts/scree/`).
 
-The analyst produces (per graduation criteria in `specs/SEED.md` §9):
-
-- `specs/domain-model.md`
-- `specs/ubiquitous-language.md`
-- `specs/invariants.md`
-- `specs/assumptions.md`
-- `specs/failure-modes.md`
-- `specs/features/*.feature`
-- `specs/cross-context/interactions.md`
-- `specs/permission-model.md`
-- `specs/frontmatter-schemas/`
-- Updates to `docs/analysis/open-questions.md`
+The remaining substantive gate is **live-infra verification** — exercising the
+real Keycloak/GitLab/Vault/OpenFGA boundaries and a browser, which the mocked
+fast tier and nightly `@contract` tier cannot prove. Open follow-ups are tracked
+in `specs/fidelity/gaps.md` and `docs/analysis/open-questions.md`.
 
 ## Constraints (project-wide)
 
