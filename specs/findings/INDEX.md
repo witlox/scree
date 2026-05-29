@@ -218,3 +218,26 @@ Adversarial pass over the degradation slice (PR #72). Primary target: does degra
 | G12-03 | Low | Robustness/operability | Availability is a static flag with no health probe | ✅ #73 (accepted: probe/circuit-breaker is a deploy concern, documented) |
 
 **Counts:** 2 medium · 1 low — **3 total, all resolved.** No `gate:blocking`.
+
+## Frontend Gate 1 (2026-05-29) — `frontend-gate-1.md`
+
+First adversarial pass over the `web/` frontend (foundation, auth #108, design system
+#105/#106, surfaces #101/#102/#103/#104). Primary target: the seams the mocked
+component tests can't see — auth, data flow, robustness.
+
+| ID | Sev | Category | Finding | Status |
+|---|---|---|---|---|
+| FE-01 | **High** | Correctness/security (auth) | First post-login requests carry no bearer (token set in effect after children render) → spurious audited 401s | open |
+| FE-02 | Medium | Security/robustness (auth) | redirect_uri is the live pathname, not a fixed registered callback | open |
+| FE-03 | Medium | Correctness (data loss) | DocEditor saves stale `initial.body` if the lazy editor never initialized | open |
+| FE-04 | Medium | Robustness (auth) | No global 401 → re-auth; expired sessions look like generic load errors | open |
+| FE-05 | Low | Robustness | Unguarded `JSON.parse(data-props)` aborts all island mounts | open |
+| FE-06 | Low | Robustness | No error boundary around islands | open |
+| FE-07 | Low | Security (defense-in-depth) | MarkdownView relies on DOMPurify defaults (no explicit forbid/rel) | open |
+| FE-08 | Low | Robustness/perf | Admin ticket-queue `columns` recreated each render | open |
+| FE-09 | Low | Correctness/UX | Community KB search results aren't actionable (bare ids) | open |
+| FE-10 | Low | Robustness | No request timeout/abort in the API client | open |
+
+**Counts:** 1 high · 3 medium · 6 low — **10 total, open.** Highest-risk: the auth
+seam (FE-01) — invisible to the mocked tests, only manifests against a live
+gateway + Keycloak.
