@@ -130,6 +130,31 @@ class DocWriteOut(BaseModel):
     space: str
     rev: str | None
 
+
+class EpicOut(BaseModel):
+    id: str
+    title: str
+    capacity: int
+
+
+class PortfolioOut(BaseModel):
+    epics: list[EpicOut]
+    epic_count: int
+    total_capacity: int
+    next_cursor: int | None
+    as_of: str | None
+    never_indexed: bool
+
+
+class RiskViewOut(BaseModel):
+    id: str
+    title: str
+    space: str
+    category: str
+    score: int
+    severity: str
+    fires_critical_webhook: bool
+
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
 LAST_KNOWN_MAX_AGE = 900.0  # G-A2: outage staleness bound (s) before membership fails closed
@@ -379,7 +404,7 @@ def create_app(
             risk_store.put(risk)
             return _risk_view(risk)
 
-        @app.get("/risks")
+        @app.get("/risks", response_model=list[RiskViewOut])
         def list_risks(request: Request, principal: str = Depends(get_principal)) -> list[dict]:
             readable = _readable_spaces(principal, request)  # INV-AGG over risks
             return [_risk_view(r) for r in risk_store.all() if r.space in readable]
@@ -431,7 +456,7 @@ def create_app(
 
     if planning_index is not None and planning_authority is not None:
 
-        @app.get("/planning/portfolio")
+        @app.get("/planning/portfolio", response_model=PortfolioOut)
         def portfolio_rollup(
             request: Request,
             principal: str = Depends(get_principal),
