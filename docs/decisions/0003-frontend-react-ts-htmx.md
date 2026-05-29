@@ -51,3 +51,20 @@ technology own a given DOM region — never both on the same region.
 - Specific admin framework (e.g. Refine.dev) for internal screens
 - API types are generated from the gateway OpenAPI spec (no hand-maintained
   duplicates)
+
+## v1 deviation (2026-05-29) — knowledge UI built React-only
+
+The first knowledge surface (#101: docs reader + WYSIWYG editor) was built
+**React-only**, including the doc *reader*, rather than htmx-for-reading as this
+ADR prescribes. Rationale: the gateway is JSON-only today (no Jinja2/HTML layer),
+and the foundation is React-islands; shipping one stack was the pragmatic path to a
+working surface. Accepted trade-off, to revisit:
+
+- The reader currently mounts TipTap (read-only render), so the **read path pulls
+  the full editor bundle** — exactly what htmx-for-reading was meant to avoid. The
+  v1 bundle is ~730 kB (242 kB gz).
+- **Revisit:** either (a) stand up the htmx + Jinja2 reader per this ADR, or (b)
+  code-split the editor island and render the reader with a lightweight
+  markdown→HTML path. Tracked alongside the Frontend v1 milestone.
+
+This does not change the ratified decision; it records where v1 diverged and why.

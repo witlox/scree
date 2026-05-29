@@ -4,15 +4,19 @@ import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 
+// tiptap-markdown augments editor.storage at runtime but ships no type for it.
+export function getMarkdown(editor: Editor): string {
+  const storage = editor.storage as unknown as { markdown: { getMarkdown(): string } };
+  return storage.markdown.getMarkdown();
+}
+
 export function roundTrip(md: string): string {
   const editor = new Editor({
     extensions: [StarterKit, Markdown],
     content: md,
   });
   try {
-    // tiptap-markdown augments editor.storage at runtime but ships no type for it.
-    const storage = editor.storage as unknown as { markdown: { getMarkdown(): string } };
-    return storage.markdown.getMarkdown();
+    return getMarkdown(editor);
   } finally {
     editor.destroy();
   }
