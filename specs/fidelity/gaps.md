@@ -1,24 +1,25 @@
 # Phase 4 — Gaps, cross-cutting, priority
 
-> **Refresh status (2026-05-29).** Of the original 24 gaps, **most are resolved**
-> (see the per-gap ✅ annotations + the Resolution section below). The frontend was
-> separately measured (`frontend.md`) and its adversary gate (Frontend Gate 1, 10
-> findings) fully resolved. **Still open — none are substantive code gaps:**
-> G-A1 *(partial — risk no-leak done; search-view binding remains, ties to G-D2)*,
-> G-A3 (GitLab branch-protection — deploy config), G-A6/#83 (closed-risk-via-MR endpoint —
-> now buildable on Git-backed risks), G-A12 (`age` break-glass — v1 scope question),
-> G-A13 (reference-render feature), G-A15 (commit trailer — blocked on ticket Git
-> persistence), G-D1/#97 (Playwright e2e), G-D2/#98 (bind canonical features). Top
-> cross-cutting gate: **live browser + Keycloak + GitLab verification** (what the mocked
-> tests and the nightly-only `@contract` tier cannot prove — FE-01 was the proof).
+> **Refresh status (2026-05-29, REFRESH 2 — BDD binding).** Of the original 24 gaps,
+> **most are resolved** (per-gap ✅ annotations + Resolution sections below). The
+> frontend was separately measured (`frontend.md`) and Frontend Gate 1 (10 findings)
+> resolved. **Newly resolved this pass:** **G-A1** (INV-AGG: `aggregation_permissions.feature`
+> now executes incl. search-view + separate-sensitive-index negatives), **G-D2**
+> (canonical `specs/features` are the executed set; drifted copy deleted), and **G-D1**
+> *partially* (a Playwright `@e2e` harness runs in CI against the canonical scenarios).
+> **Still open — none are substantive code gaps:** G-A3 (branch-protection on the
+> *runtime-data* repos — deploy config), G-A6/#83 (closed-risk-via-MR endpoint — `xfail`'d
+> pending the endpoint), G-A12 (`age` break-glass — v1 scope), G-A13 (reference-render),
+> G-A15 (commit trailer — blocked on ticket Git persistence). Top cross-cutting gate:
+> **live browser + Keycloak + GitLab verification** (what the mocked tests, nightly-only
+> `@contract` tier, and route-mocked `@e2e` cannot prove — FE-01 was the proof).
 
 Ranked by blast radius if the unenforced behavior breaks. Each gap routes to the implementer as a `type:bug` / `phase:auditor` issue (the auditor measures; it does not fix). IDs: **G-A** authz/correctness, **G-B** boundary, **G-C** infra/over-stub, **G-D** cross-cutting.
 
 ## Critical / High
 
-### G-A1 — INV-AGG canonical spec is unexecuted; risk + search aggregation under-tested · **severity:high**
-`aggregation_permissions.feature` (the load-bearing INV-AGG spec: metadata-leak-in-counts/titles, separate sensitive-category index, stale-cache-fails-closed) has **no `scenarios()` binding** — it is unexecuted prose. Aggregation IS enforced for **planning** (`test_planning.py` `existence_hidden`) and **docs/epics** (`test_composed_authority.py:54,64`) with true negatives. But **risk-register aggregation** is only MODERATE (`test_risk_persistence_api.py:33`, in-memory, asserts id-absence but not count/score/metadata non-leak), and **search-view filtering** has no test at all.
-- Action: bind `aggregation_permissions.feature` with executable steps incl. the negative leak cases; add a risk-aggregation test asserting no count/score/title of an unauthorized risk is exposed; add search-endpoint per-item filtering.
+### G-A1 — INV-AGG canonical spec executed · ✅ **RESOLVED (2026-05-29, REFRESH 2)**
+`aggregation_permissions.feature` is now bound (`tests/features/test_bdd_aggregation.py`) and runs over a **Git-backed** risk store + the #84 search index: the cross-project register excludes unreadable risks, **asserts no count/score/title of an unauthorized risk leaks** (result-count == readable-count; the hidden risk's id/title absent from the response), and the **separate sensitive-category index stays space-filtered** via `GET /search`. Together with planning (`existence_hidden`) and docs/epics, **INV-AGG is ENFORCED across planning, docs, risk-register, and search.** The one remaining scenario — *stale permission cache fails closed* — is bound but `xfail`'d, because within the cache TTL the Gateway deliberately serves last-known grants (INV-DEG-1); that is the documented INV-ACC-5 ↔ INV-DEG-1 tension tracked under **G-A2**, not an INV-AGG hole.
 
 ### G-B1 — `@contract` tier never runs in CI · **severity:high**
 `.github/workflows/ci.yml:21` installs no `testcontainers`; all 12 contract tests skip at collection. Every FAITHFUL boundary rating (OpenFGA, OIDC, Vault) is **unverified in the pipeline**; PARTIAL/DIVERGENT seams are wholly invisible. A stub diverging from a real API would never be caught by CI.
@@ -73,13 +74,13 @@ INV-EMAIL-1 attribution rests on a trusted verdict that is *assumed* (injected p
 - **G-A15 — INV-ID-4** external-write-by-desk-SA / commit-trailer identity — no test. · low
 - **G-A16 — INV-DEG-1** slack_link/migration outage refusal asserts 503 status only, not "nothing created". · low
 - **G-A17 — INV-ORPH** "never auto-reassign" has no explicit owner/assignee-unchanged assertion. · low
-- **G-D1 — ADR-0004** Playwright e2e tier absent; `@e2e`-tagged scenarios (in unbound features) never run. · low
-- **G-D2** — 10 of 12 canonical `specs/features/*.feature` files are unexecuted prose (behavior covered by integration tests, but the canonical scenarios drift from what runs). Decide whether `specs/features/` or `api/tests/features/` is authoritative and reconcile. · low
+- **G-D1 — ADR-0004** Playwright e2e tier — ✅ **partially resolved (2026-05-29, REFRESH 2):** a `@e2e` harness (`web/e2e/`, dependency-free runner reading the canonical features) drives the real `CustomerPortal` island in Chromium across desktop + mobile via a host page + route mocks; `portal.feature` @e2e passes in the new `web-e2e` CI job, `docs.feature` WYSIWYG is `fixme`. **Still open:** the API/auth is route-mocked, so the real-browser-vs-live-Keycloak/GitLab pass (the FE-01 class) remains the top frontend gate. · low
+- **G-D2** — ✅ **resolved (2026-05-29, REFRESH 2):** `specs/features/` is authoritative and **executed** — `bdd_features_base_dir` points there, the drifted `api/tests/features/*.feature` copy is deleted, and all 12 canonical features are bound (`tests/features/test_bdd_*.py`). `@contract`/`@e2e` scenarios are collected but skipped in the `@api` run (routed to their tiers via `pytest_bdd_apply_tag`). · low
 
 ## Cross-cutting summary
 
-- **Tag gates without gated tests:** the `contract` marker is declared but never selected/excluded in CI → inert. The `@e2e` tag has no runner.
-- **Orphan / dead specs:** `aggregation_permissions`, `data_protection`, `degradation`, `docs`, `migration`, `orphan_detection`, `portal`, `risk_register`, `slack_capture`, `ticket_origins` `.feature` files have no step bindings.
+- ~~**Tag gates without gated tests**~~ — resolved: `@contract` runs nightly (G-B1) and `@e2e` now has a Playwright runner + `web-e2e` CI job (G-D1). All three tiers (`@api`/`@contract`/`@e2e`) are selected somewhere.
+- ~~**Orphan / dead specs**~~ — resolved (REFRESH 2): all 12 canonical `*.feature` files now have step bindings; none are unexecuted prose.
 - **Over-stubs (acceptable but bounding depth):** in-memory `RiskStore`, in-memory audit sink, bool-only webhook "firing".
 - **What's genuinely strong** (do not regress): real-`git` doc/Git path, OIDC negative matrix, email verification negatives, erasure completeness, migration idempotency, planning INV-AGG existence-hiding, degradation read-survives/write-refused.
 
@@ -118,4 +119,27 @@ backend-tractable gaps were fixed; the rest are flagged with a concrete blocker
 - **G-B4** — ✅ **resolved (2026-05-29, #86):** `integration/o365/poller.py` models the seam — the DKIM/DMARC verdict is read from OUR mail infra's `Authentication-Results` (its `authserv-id`); attacker-embedded A-R (any other authserv-id) is ignored (G4-01), and the poll→ingest flow drives INV-EMAIL-1 (trusted pass → attribute; else quarantine). The live Microsoft Graph delta/subscription fetch is a deploy concern (RealGraphClient); the verdict logic + flow are tested.
 - **G-A12** — ADR-0008 client-side `age` break-glass: v1 scope question (ratify before building).
 - **G-D1** — Playwright e2e tier: frontend infra (`web/` uses vitest only).
-- **G-D2** — reconcile `specs/features/` vs `api/tests/features/` authority + bind the canonical features (incl. `aggregation_permissions.feature`): structural decision.
+- **G-D2** — ✅ resolved in REFRESH 2 (below).
+
+---
+
+## Resolution (2026-05-29, REFRESH 2 — canonical BDD + @e2e)
+
+The two BDD-structural gaps are closed and a browser tier added. Suite after:
+**255 passed / 22 skipped / 5 xfailed** (api), **42 vitest + 6 @e2e** (web).
+
+- **G-D2** — `specs/features/` is now the executed `@api` source (`bdd_features_base_dir`);
+  the drifted `api/tests/features/*.feature` copy is deleted; all 12 features bound by
+  `tests/features/test_bdd_*.py`. A `pytest_bdd_apply_tag` hook skips `@contract`/`@e2e`
+  scenarios in the `@api` run (they belong to the testcontainers / Playwright tiers).
+- **G-A1** — `aggregation_permissions.feature` executes (4 scenarios): cross-project
+  register exclusion, **no count/score/title leak**, separate-sensitive-index via
+  `GET /search`. INV-AGG ENFORCED for planning/docs/risk/search. doc/risk BDD fixtures
+  use `GitBacked*Store` (persistence proven, INV-ST-1/2).
+- **G-D1** *(partial)* — `web/e2e/` Playwright harness reads the canonical features and
+  drives the real `CustomerPortal` island (desktop + mobile, route-mocked API); `web-e2e`
+  CI job added. `docs` WYSIWYG @e2e is `fixme` (Tiptap round-trip). Live-auth pass open.
+
+**Honest `xfail`s (bound, not faked)** — these surface real Gateway gaps rather than
+hiding them: risk **escalation** & **close-via-MR** (G-A6), ticket **merge**, Slack
+**autocomplete** (no endpoints yet); and **stale-cache fail-closed** (the G-A2 tension).

@@ -4,11 +4,19 @@ Depth scale: NONE · STUB · SHALLOW (status/bool/mock-called) · MODERATE (real
 
 All `@api` tests run in-process via FastAPI `TestClient` over **faithful** components (real `git`, real `FernetCrypto`, real `IdentityDirectory`/stores, `FakeOpenFga` with real union logic). None are true INTEGRATION — that tier is the dormant `@contract` set (`boundaries.md`).
 
-## Feature-binding map (important structural finding)
+## Feature-binding map — RESOLVED in REFRESH 2 (see `INDEX.md`)
 
-Only **5** features are executable; they live in `api/tests/features/` and are bound by `scenarios()`:
+> **This baseline finding is superseded.** The drifted 5-file `api/tests/features/*.feature`
+> copy described below has been **deleted**; `bdd_features_base_dir` now points at
+> `specs/features`, and step modules (`tests/features/test_bdd_*.py`) bind the **canonical
+> 12** features. **39 `@api` scenarios pass; 5 are `xfail`'d** (no-endpoint gaps +
+> the INV-ACC-5/DEG-1 stale-cache tension); `@contract`/`@e2e` route to their tiers.
+> doc/risk fixtures use Git-backed stores (persistence proven). The historical finding is
+> kept below for provenance.
 
-| Bound test feature | Step file |
+~~Only **5** features are executable; they live in `api/tests/features/` and are bound by `scenarios()`:~~
+
+| Bound test feature (HISTORICAL — removed) | Step file |
 |---|---|
 | `ticket_lifecycle.feature` | `test_ticket_lifecycle.py:15` |
 | `ticket_create.feature` | `test_ticket_create.py:14` |
@@ -16,7 +24,7 @@ Only **5** features are executable; they live in `api/tests/features/` and are b
 | `planning.feature` | `test_planning.py:19` |
 | `tickets_read.feature` | `test_tickets_read.py:16` |
 
-The canonical analyst set `specs/features/` (12 files) is a **different, larger** set. Only `planning` and `ticket_lifecycle` share a name. **Unexecuted as Gherkin:** `aggregation_permissions`, `data_protection`, `degradation`, `docs`, `migration`, `orphan_detection`, `portal`, `risk_register`, `slack_capture`, `ticket_origins`. Their *behavior* is largely covered by integration tests (below), but the canonical scenarios — including `@e2e`-tagged ones — never run.
+Historically the canonical analyst set `specs/features/` (12 files) was a **different, larger** set that never ran. As of REFRESH 2 it **is** the executed set: `aggregation_permissions`, `data_protection`, `degradation`, `docs`, `migration`, `orphan_detection`, `portal`, `risk_register`, `slack_capture`, `ticket_origins`, `ticket_lifecycle`, `planning` are all bound.
 
 ## Access / authority / identity
 

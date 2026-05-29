@@ -10,6 +10,12 @@
 > forged distrusted). Still DOCUMENTED/config-only: INV-GOV-1 (deploy), INV-LC-3
 > (close-via-MR endpoint not built), INV-ENC-4 (`age` rotation, scope), INV-REF-3/5
 > (render layer), INV-ID-4 (commit trailer — tickets still in-memory). See `gaps.md`.
+>
+> **REFRESH 2 (2026-05-29, BDD binding):** the canonical `specs/features` are now the
+> executed `@api` set (G-D2) and `aggregation_permissions.feature` runs (G-A1) → **INV-AGG
+> ENFORCED** (search-view + separate-sensitive-index included; stale-cache `xfail`'d as the
+> G-A2 tension). doc/risk BDD now runs on Git-backed stores. A Playwright `@e2e` tier was
+> added (G-D1, partial). ADR-0004 upgraded to ENFORCED at the mocked tiers.
 
 Per invariant: is there a test that **fails if it is violated**? ENFORCED (yes, against real/faithful code) · DOCUMENTED (asserted only shallowly, or mechanism is config with no test) · UNENFORCED (no failing test). Critical invariants per `specs/invariants.md`: INV-AGG, INV-ACC-*, INV-ID-2.
 
@@ -38,7 +44,7 @@ Per invariant: is there a test that **fails if it is violated**? ENFORCED (yes, 
 
 | Inv | Statement | Status | Evidence / gap |
 |---|---|---|---|
-| **INV-AGG** | Aggregation ⊆ directly-readable; no metadata leak | **PARTIAL** | ENFORCED for planning (`test_planning.py` `existence_hidden` — id/title/count/capacity exclusion) + docs/epics (`test_composed_authority.py:54,64`). Risk-register: MODERATE (`test_risk_persistence_api.py:33`, in-memory, no count/score-leak assertion). **Search view + separate-sensitive-index: UNENFORCED.** `aggregation_permissions.feature` unbound. |
+| **INV-AGG** | Aggregation ⊆ directly-readable; no metadata leak | **ENFORCED** (REFRESH 2) | planning (`test_planning.py` `existence_hidden`) + docs/epics (`test_composed_authority.py:54,64`) + **risk-register no-leak** + **search-view & separate-sensitive-index** — `aggregation_permissions.feature` now bound (`test_bdd_aggregation.py`) over a Git-backed risk store + the #84 index, asserting result-count == readable-count and the hidden risk's id/title absent. Residual: stale-cache fail-closed is `xfail`'d (the INV-ACC-5↔INV-DEG-1 tension, G-A2). |
 | INV-ACC-1 | All access Gateway-mediated; no bypass | **ENFORCED** | `test_oidc_gateway.py:67`. |
 | INV-ACC-2 | Authority = GitLab RBAC ∪ ticket ReBAC | **ENFORCED (fakes)** | `test_ticket_authority.py` + `test_composed_authority.py:54`; real GitLab union only at dormant @contract. |
 | INV-ACC-3 | Ticket readable only by participants / community | **ENFORCED** | `test_ticket_access_fixes.py:35,46`. |
@@ -116,7 +122,7 @@ Per invariant: is there a test that **fails if it is violated**? ENFORCED (yes, 
 | 0001 in-house desk on Git substrate | PARTIAL | docs on real Git; tickets/risks in-memory. |
 | 0002 backend Python/FastAPI | N/A | meta. |
 | 0003 frontend React/htmx | not audited | `web/` (vitest) out of this scope. |
-| 0004 BDD pytest-bdd + Playwright | PARTIAL | pytest-bdd for 5 features; **Playwright e2e tier absent** (`@e2e` tags only in unbound features). |
+| 0004 BDD pytest-bdd + Playwright | **ENFORCED (mocked tiers)** (REFRESH 2) | pytest-bdd binds **all 12 canonical features** (`@api`); Playwright `@e2e` harness drives real islands in CI (`web-e2e`, desktop+mobile). Both tiers mock their boundary (gateway fakes / route mocks), so live-Keycloak/GitLab verification remains the open cross-cutting gate. |
 | 0005 selective encryption split-key | ENFORCED (Gateway-mediated half) | client-side half = ADR-0008. |
 | 0006 data protection & erasure | ENFORCED | INV-DP-* covered. |
 | 0007 authz GitLab RBAC + OpenFGA | ENFORCED (fast tier) | real GitLab union at dormant @contract. |
