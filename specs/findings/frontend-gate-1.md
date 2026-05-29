@@ -158,9 +158,37 @@ order, not whether.
 | FE-09 | Low | Correctness/UX | Community KB search results aren't actionable (bare ids) |
 | FE-10 | Low | Robustness | No request timeout/abort in the API client |
 
-**Counts:** 0 critical · 1 high · 3 medium · 6 low — **10 total.**
+**Counts:** 0 critical · 1 high · 3 medium · 6 low — **10 total, all resolved.**
 
 **Highest-risk area:** the auth seam — FE-01 (token race) emits unauthenticated,
 audited 401s on every real-OIDC surface load and is invisible to the mocked component
 tests; FE-02/FE-04 round out auth-lifecycle correctness. These only manifest against a
 live gateway + Keycloak, the path that has not yet been browser-verified.
+
+---
+
+## Resolution (2026-05-29) — all 10 resolved
+
+- **FE-01** — `AuthGate` now writes the bearer to the token store **synchronously during
+  render** (before children mount), so the first query carries it. No more unauthenticated
+  loads. (`auth/AuthGate.tsx`)
+- **FE-02** — `redirect_uri` is a **fixed** `origin + VITE_OIDC_REDIRECT_PATH` (default `/`,
+  registerable once) instead of the live pathname; `post_logout_redirect_uri` set too.
+  (`auth/config.ts`, `auth/AuthProvider.tsx`, `.env.example`)
+- **FE-03** — DocEditor Save is gated on `editorReady`, and the save path **throws if the
+  editor isn't ready** rather than committing `initial.body`. No silent stale save.
+- **FE-04** — a global `QueryCache.onError` fires an `unauthorized` bridge on 401; the
+  AuthGate registers `signinRedirect`, so an expired session re-authenticates.
+  (`auth/session.ts`, `lib/query/queryClient.ts`)
+- **FE-05** — `JSON.parse(data-props)` is wrapped in try/catch; a bad attribute warns and
+  the island still mounts.
+- **FE-06** — each island is wrapped in an `ErrorBoundary` with a fallback. (`ui/ErrorBoundary.tsx`)
+- **FE-07** — MarkdownView pins an explicit `FORBID_TAGS`/`FORBID_ATTR` and a hook adding
+  `rel="noopener noreferrer"`; a sanitization test asserts script/iframe/handler/`javascript:`
+  are stripped.
+- **FE-08** — admin ticket-queue `columns` are `useMemo`'d (stable identity).
+- **FE-09** — community KB hits are buttons that open the (community-visible) ticket.
+- **FE-10** — the API client attaches a 20s `AbortSignal.timeout` (honoring an explicit signal).
+
+New/updated tests: config redirect_uri, mountIslands malformed-props, MarkdownView
+sanitization, `unauthorized` bridge. Suite: **42 web tests pass**; tsc clean; build OK.

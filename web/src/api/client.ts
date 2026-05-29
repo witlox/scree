@@ -4,6 +4,14 @@ import type { paths } from "./schema";
  *  shapes. Feature code derives types from this; never hand-write them. */
 export type ApiPaths = paths;
 
+const REQUEST_TIMEOUT_MS = 20_000; // FE-10: don't hang forever on a dead gateway
+
+function timeoutSignal(): AbortSignal | undefined {
+  return typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+    ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    : undefined;
+}
+
 /** Supplies the current OIDC bearer (or null when unauthenticated). */
 export type TokenProvider = () => string | null | Promise<string | null>;
 
@@ -52,7 +60,8 @@ export class ApiClient {
     if (token) headers.set("Authorization", `Bearer ${token}`);
     else if (this.devUser) headers.set("X-Spike-User", this.devUser);
 
-    const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
+    const signal = init.signal ?? timeoutSignal();
+    const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers, signal });
     if (!resp.ok) {
       let body: unknown;
       try {

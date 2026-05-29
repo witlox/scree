@@ -1,6 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { AppShell } from "../../ui/AppShell";
 import { Button } from "../../ui/Button";
@@ -39,26 +39,31 @@ function TicketQueue() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: adminKeys.tickets }),
   });
 
-  const columns: ColumnDef<TicketSummary>[] = [
-    { accessorKey: "id", header: "Ticket" },
-    { accessorKey: "status", header: "Status" },
-    { accessorKey: "origin", header: "Origin" },
-    { accessorKey: "requester", header: "Requester", cell: (c) => c.getValue<string | null>() ?? "—" },
-    {
-      id: "actions",
-      header: "Actions",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <span className="doc-toolbar">
-          {nextTransitions(row.original.status).map((a) => (
-            <Button key={a.status} disabled={transition.isPending} onClick={() => transition.mutate({ id: row.original.id, status: a.status })}>
-              {a.label}
-            </Button>
-          ))}
-        </span>
-      ),
-    },
-  ];
+  // FE-08: stable column identity (don't rebuild on every render). transition.mutate is
+  // stable; isPending toggles only while a transition is in flight.
+  const columns: ColumnDef<TicketSummary>[] = useMemo(
+    () => [
+      { accessorKey: "id", header: "Ticket" },
+      { accessorKey: "status", header: "Status" },
+      { accessorKey: "origin", header: "Origin" },
+      { accessorKey: "requester", header: "Requester", cell: (c) => c.getValue<string | null>() ?? "—" },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="doc-toolbar">
+            {nextTransitions(row.original.status).map((a) => (
+              <Button key={a.status} disabled={transition.isPending} onClick={() => transition.mutate({ id: row.original.id, status: a.status })}>
+                {a.label}
+              </Button>
+            ))}
+          </span>
+        ),
+      },
+    ],
+    [transition.isPending, transition.mutate],
+  );
 
   return (
     <section aria-labelledby="queue-h">

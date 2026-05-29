@@ -29,7 +29,7 @@ export function CustomerPortal() {
       <main className="app-shell__main">
         {view.tab === "tickets" && <MyTickets onOpen={(id) => setView({ tab: "ticket", id })} />}
         {view.tab === "ticket" && <TicketDetail ticketId={view.id} onBack={() => setView({ tab: "tickets" })} />}
-        {view.tab === "help" && <CommunityHelp />}
+        {view.tab === "help" && <CommunityHelp onOpen={(id) => setView({ tab: "ticket", id })} />}
         {view.tab === "prefs" && <Preferences />}
       </main>
     </div>
@@ -80,7 +80,7 @@ function MyTickets({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
-function CommunityHelp() {
+function CommunityHelp({ onOpen }: { onOpen: (id: string) => void }) {
   const [q, setQ] = useState("");
   const [submitted, setSubmitted] = useState("");
   const { data, isFetching, isError } = useQuery({
@@ -101,7 +101,11 @@ function CommunityHelp() {
       {data && data.length > 0 && (
         <ul className="doc-list">
           {data.map((h) => (
-            <li key={h.id}>{h.id}</li>
+            <li key={h.id}>
+              <button type="button" className="doc-list__item" onClick={() => onOpen(h.id)}>
+                <span className="doc-list__title">{h.id}</span>
+              </button>
+            </li>
           ))}
         </ul>
       )}

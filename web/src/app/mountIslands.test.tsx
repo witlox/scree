@@ -32,4 +32,13 @@ describe("mountIslands", () => {
     document.body.innerHTML = `<div data-island=""></div>`;
     expect(mountIslands({})).toBe(0);
   });
+
+  it("tolerates malformed data-props and still mounts the island (FE-05)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    document.body.innerHTML = `<div data-island="demo" data-props="{not json}"></div>`;
+    const Demo: ComponentType<Record<string, unknown>> = () => <span>island:ok</span>;
+    expect(mountIslands({ demo: Demo })).toBe(1); // doesn't throw / abort
+    expect(warn).toHaveBeenCalled();
+    await vi.waitFor(() => expect(document.body.textContent).toContain("island:ok"));
+  });
 });

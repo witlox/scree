@@ -88,6 +88,7 @@ function DocEditorForm({
 }) {
   const qc = useQueryClient();
   const editorApi = useRef<TiptapApi | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
   const [title, setTitle] = useState(initial.title);
   const [id, setId] = useState(initial.id);
   const [path, setPath] = useState(initial.path);
@@ -95,7 +96,10 @@ function DocEditorForm({
 
   const save = useMutation({
     mutationFn: () => {
-      const body = editorApi.current ? editorApi.current.getMarkdown() : initial.body;
+      // FE-03: never silently save the original body. Save is gated on editorReady;
+      // this guard is defensive — fail loudly rather than commit stale content.
+      if (!editorApi.current) throw new Error("editor is not ready");
+      const body = editorApi.current.getMarkdown();
       const content = buildDocContent({ id, schema_version: initial.schema_version, title, space: docSpace, body });
       return docsApi.write({ path, content, base_rev: isNew ? null : initial.rev });
     },
@@ -108,7 +112,8 @@ function DocEditorForm({
   });
 
   const failure = save.isError ? classifyWriteError(save.error) : null;
-  const canSave = title.trim() !== "" && path.trim() !== "" && id.trim() !== "" && docSpace.trim() !== "";
+  const canSave =
+    editorReady && title.trim() !== "" && path.trim() !== "" && id.trim() !== "" && docSpace.trim() !== "";
 
   return (
     <form
@@ -139,7 +144,13 @@ function DocEditorForm({
       )}
 
       <Suspense fallback={<p role="status">Loading editor…</p>}>
-        <Tiptap markdown={initial.body} onReady={(apiHandle) => (editorApi.current = apiHandle)} />
+        <Tiptap
+          markdown={initial.body}
+          onReady={(apiHandle) => {
+            editorApi.current = apiHandle;
+            setEditorReady(true);
+          }}
+        />
       </Suspense>
 
       {failure && <p role="alert" className="doc-error">{FAILURE_MESSAGE[failure]}</p>}
