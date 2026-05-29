@@ -1,4 +1,6 @@
+import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass
@@ -42,3 +44,44 @@ class AttachmentStore:
 
     def for_ticket(self, ticket_id: str) -> list[Attachment]:
         return list(self._by_ticket.get(ticket_id, []))
+
+
+# A ticket id is opaque and slash-free (`ticket-...`); reject anything else so an
+# attachment can never be written outside its ticket prefix (path-traversal guard).
+_SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+class FileAttachmentStore:
+    """Durable object-storage-backed attachments. Bytes are written under a root
+    directory that stands for the object store (a mounted bucket / MinIO / S3-fuse);
+    they are **not** committed to any Git repo (external-attachment decision). A
+    drop-in S3/MinIO client can replace the filesystem backend without changing the
+    `put`/`for_ticket` interface."""
+
+    def __init__(self, root: Path | str) -> None:
+        self._root = Path(root)
+
+    def _ticket_dir(self, ticket_id: str) -> Path:
+        if not _SAFE_ID.match(ticket_id):
+            raise ValueError(f"unsafe ticket id: {ticket_id!r}")
+        return self._root / ticket_id
+
+    def put(self, ticket_id: str, filename: str, content: bytes) -> Attachment:
+        d = self._ticket_dir(ticket_id)
+        d.mkdir(parents=True, exist_ok=True)
+        seq = len(list(d.glob("*"))) + 1
+        safe_name = Path(filename).name  # strip any path components from the upload
+        object_key = f"{ticket_id}/{seq:04d}-{safe_name}"
+        (self._root / object_key).write_bytes(content)
+        return Attachment(ticket_id=ticket_id, filename=safe_name, object_key=object_key)
+
+    def for_ticket(self, ticket_id: str) -> list[Attachment]:
+        d = self._ticket_dir(ticket_id)
+        if not d.is_dir():
+            return []
+        out = []
+        for f in sorted(d.glob("*")):
+            # name is "NNNN-<filename>"; recover the original filename.
+            filename = f.name.split("-", 1)[1] if "-" in f.name else f.name
+            out.append(Attachment(ticket_id=ticket_id, filename=filename, object_key=f"{ticket_id}/{f.name}"))
+        return out
