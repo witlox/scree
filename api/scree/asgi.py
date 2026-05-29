@@ -33,7 +33,7 @@ from scree.knowledge.store import DocStore
 from scree.planning.authority import PlanningAuthority
 from scree.planning.index import PlanningIndex
 from scree.planning.models import Epic
-from scree.portal.stores import AttachmentStore, FileAttachmentStore
+from scree.portal.stores import AttachmentStore, FileAttachmentStore, GitBackedAttachmentStore
 from scree.risk.git_store import GitBackedRiskStore
 from scree.risk.models import Risk
 from scree.risk.store import RiskStore
@@ -106,18 +106,27 @@ def build_app() -> FastAPI:
     # Storage: durable when a path is configured, else in-memory (dev/demo).
     docs_repo = os.environ.get("SCREE_DOCS_REPO")
     risks_repo = os.environ.get("SCREE_RISKS_REPO")
-    tickets_repo = os.environ.get("SCREE_TICKETS_REPO")  # tickets + comments live here
+    tickets_repo = os.environ.get("SCREE_TICKETS_REPO")  # tickets + comments + attachments live here
     identity_db = os.environ.get("SCREE_IDENTITY_DB")  # PII map, off Git (INV-DP-1)
-    attachments_dir = os.environ.get("SCREE_ATTACHMENTS_DIR")  # object storage, not Git
+    attachments_dir = os.environ.get("SCREE_ATTACHMENTS_DIR")  # S3/object-store alternative
     doc_store = GitBackedDocStore(docs_repo) if docs_repo else DocStore([])
     risk_store = GitBackedRiskStore(risks_repo) if risks_repo else RiskStore()
     doc_writer = DocService(doc_store, Authority({}), governed_prefixes=_csv("SCREE_GOVERNED_PREFIXES")) if docs_repo else None
+
+    # Attachments (DD-002, revised): default to Git LFS in the ticket repo; an explicit
+    # SCREE_ATTACHMENTS_DIR selects the S3/object-store alternative; in-memory in dev.
+    if attachments_dir:
+        attachment_store = FileAttachmentStore(attachments_dir)
+    elif tickets_repo:
+        attachment_store = GitBackedAttachmentStore(tickets_repo)
+    else:
+        attachment_store = AttachmentStore()
 
     common = dict(
         ticket_store=GitBackedTicketStore(tickets_repo) if tickets_repo else TicketStore(),
         comment_store=GitBackedCommentStore(tickets_repo) if tickets_repo else CommentStore(),
         identity_directory=FileIdentityDirectory(identity_db) if identity_db else IdentityDirectory(),
-        attachment_store=FileAttachmentStore(attachments_dir) if attachments_dir else AttachmentStore(),
+        attachment_store=attachment_store,
         risk_store=risk_store,
         doc_writer=doc_writer,
         audit=AuditSink(),

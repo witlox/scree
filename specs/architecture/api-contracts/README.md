@@ -25,7 +25,7 @@ outline the generated spec must satisfy, not a hand-maintained duplicate.
 | **Resources** | `GET/POST/PATCH /docs`, `/risks` | repo-scoped authority; MR-required paths reject direct write (INV-GOV-1) |
 | **Tickets** | `POST /tickets` (origin, optional `encrypt`), `GET /tickets/{id}`, `PATCH` (state transition), `POST /tickets/{id}/replies`, `POST /tickets/{id}/watchers`, `POST /tickets/{id}/community-visible` | ReBAC via OpenFGA; `encrypt` is create-time (INV-DP-3); state transitions validated (INV-LC-1) |
 | **Aggregation / search** | `GET /search`, `GET /risk-register`, `GET /portfolio` | **per-item filtered** (INV-AGG) via OpenFGA `ListObjects` + GitLab authority; results carry `as-of` staleness marker |
-| **Attachments** | `POST /tickets/{id}/attachments` | object storage, not Git (DD-002) |
+| **Attachments** | `POST /tickets/{id}/attachments` | Git LFS on the ticket repo by default; object storage alternative (DD-002, revised); encrypted on born-encrypted tickets |
 | **Identity / DSAR** | `GET/PATCH /me`, `POST /admin/erasure/{requester}` | identity directory (INV-DP-1); erasure = anonymize + crypto-shred (INV-DP-2) |
 | **Indexing** | `POST /reindex` (manual, rate-limited), webhook receiver | INV-IX-2/3; webhook verifies signature, re-reads from Git (no payload trust) |
 | **Admin** | orphan report, audit query | orphaned-actives (INV-ORPH); audit reads are themselves audited |

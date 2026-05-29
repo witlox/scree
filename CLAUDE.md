@@ -71,7 +71,7 @@ These apply regardless of role. They are not negotiable in any phase without exp
 - **Monorepo** for the custom layer
 - **Three-tier trigger model** for indexing: hourly batch + manual + critical-only webhook
 - **Update model**: direct commit default, MR-required for compliance-tagged paths
-- **External attachments**: object storage (not Git LFS) for service desk attachments
+- **External attachments**: Git LFS on the ticket repo by default; S3-compatible object storage as the configurable alternative (revises DD-002). Attachments on a born-encrypted ticket are encrypted too, so a GDPR crypto-shred erases them like the body.
 
 ### Workflow
 - **Big bang migration** from Atlassian (not phased rollout)

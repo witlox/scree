@@ -16,11 +16,13 @@ from scree.access.ticket_authority import TicketAuthority
 from scree.crypto.transit import FernetCrypto
 from scree.gateway.app import create_app
 from scree.knowledge.store import DocStore
-from scree.portal.stores import FileAttachmentStore
-from scree.servicedesk.comments import TicketComment
+from scree.crypto.transit import DecryptionUnavailable
+from scree.portal.stores import AttachmentStore, FileAttachmentStore, GitBackedAttachmentStore
+from scree.servicedesk.comments import CommentStore, TicketComment
 from scree.servicedesk.git_comments import GitBackedCommentStore
 from scree.servicedesk.git_store import GitBackedTicketStore
 from scree.servicedesk.models import Ticket
+from scree.servicedesk.store import TicketStore
 
 
 @pytest.fixture
@@ -134,3 +136,40 @@ def test_gateway_persists_ticket_and_reply(repo):
     bodies = [c.body for c in GitBackedCommentStore(repo).for_ticket(tid)]
     assert "it broke" in bodies and "any update?" in bodies
     assert "On-Behalf-Of: ext-cust" in _last_commit_body(repo, f"tickets/{tid}.md")
+
+
+# --- Attachments: Git-LFS default (DD-002 revised) ---
+def test_attachment_git_lfs_default_persists(repo):
+    store = GitBackedAttachmentStore(repo)
+    att = store.put("ticket-7", "screenshot.png", b"PNGDATA")
+    assert (repo / att.object_key).read_bytes() == b"PNGDATA"  # in the ticket repo
+    assert "attachments/** filter=lfs" in (repo / ".gitattributes").read_text()  # LFS configured
+    assert _commits(repo) >= 2  # .gitattributes + the attachment
+    fresh = GitBackedAttachmentStore(repo).for_ticket("ticket-7")
+    assert [a.filename for a in fresh] == ["screenshot.png"]  # rebuildable from Git
+
+
+# --- Attachment encryption + crypto-shred (ADR-0005 / INV-DP-2) ---
+def test_attachment_on_encrypted_ticket_is_ciphertext_and_shreddable():
+    crypto = FernetCrypto()
+    store = AttachmentStore()
+    app = create_app(
+        DocStore([]), Authority({}),
+        ticket_store=TicketStore(), ticket_authority=TicketAuthority(FakeOpenFga(), {"agent:dani"}),
+        comment_store=CommentStore(),
+        ticket_crypto=crypto, attachment_store=store, allow_insecure_header_auth=True,
+    )
+    client = TestClient(app)
+    created = client.post("/tickets", json={"origin": "web", "encrypt": True}, headers={"X-Spike-User": "ext-cust"})
+    tid = created.json()["id"]
+    assert created.json()["encrypted"] is True
+    secret = "PNGBYTES-with-PII"
+    client.post(f"/tickets/{tid}/attachments", json={"filename": "scan.png", "content": secret},
+                headers={"X-Spike-User": "ext-cust"})
+
+    blob = store._blobs[store.for_ticket(tid)[0].object_key].decode("utf-8")
+    assert secret not in blob  # stored as ciphertext, not plaintext
+    assert crypto.decrypt("ext-cust", blob) == secret  # decrypts with the per-requester key
+    crypto.destroy("ext-cust")  # GDPR crypto-shred
+    with pytest.raises(DecryptionUnavailable):
+        crypto.decrypt("ext-cust", blob)  # now permanently unrecoverable — covers attachments too
