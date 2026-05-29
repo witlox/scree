@@ -111,10 +111,32 @@ def build_summary(features: list[tuple[str, str]]) -> str:
         return f"[{t}]({rel})"
 
     lines: list[str] = ["# Summary", ""]
-    # Prefix chapter (intro): the stakeholder overview.
-    lines.append(f"- {link('docs/overview.md', 'Overview')}")
-    lines.append(f"  - {link('docs/PROPOSAL.md')}")
-    lines.append(f"  - {link('docs/spike-report.md')}")
+    # Prefix chapter: the landing / front page (a real introduction, not a
+    # build-process artifact).
+    lines.append("[Scree](docs/index.md)")
+    lines.append("")
+
+    lines.append("# Why Scree")
+    lines.append("")
+    lines.append(f"- {link('docs/why.md', 'The case for Scree')}")
+    lines.append("")
+
+    lines.append("# User Guide")
+    lines.append("")
+    for rel, title in [
+        ("docs/usage/getting-started.md", "Getting Started"),
+        ("docs/usage/customer-portal.md", "Customer Portal"),
+        ("docs/usage/knowledge.md", "Knowledge"),
+        ("docs/usage/portfolio-and-risk.md", "Portfolio & Risk"),
+        ("docs/usage/agent-console.md", "Agent Console"),
+    ]:
+        lines.append(f"- {link(rel, title)}")
+    lines.append("")
+
+    lines.append("# Operating Scree")
+    lines.append("")
+    lines.append(f"- {link('docs/operator-guide.md', 'Operator Guide')}")
+    lines.append(f"- {link('docs/glossary.md', 'Glossary')}")
     lines.append("")
 
     lines.append("# Domain & Specification")
@@ -180,6 +202,9 @@ def build_summary(features: list[tuple[str, str]]) -> str:
 
     lines.append("# Background")
     lines.append("")
+    lines.append(f"- {link('docs/overview.md', 'Stakeholder design summary')}")
+    lines.append(f"- {link('docs/PROPOSAL.md')}")
+    lines.append(f"- {link('docs/spike-report.md')}")
     for rel in [
         "docs/analysis/design-conversation.md",
         "docs/analysis/design-decisions.md",
