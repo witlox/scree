@@ -1,0 +1,8 @@
+# pnpm settings (single package; not a multi-package workspace).
+# Supply-chain hardening: refuse dependency versions younger than 3 days, so a
+# freshly-published malicious release can't be pulled before it's caught/yanked.
+minimumReleaseAge: 4320 # minutes (3 days)
+# pnpm 11 blocks dependency build scripts by default. esbuild's postinstall links
+# its platform binary and is required by vite — allow this trusted one explicitly.
+allowBuilds:
+  esbuild: true
