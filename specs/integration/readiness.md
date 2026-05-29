@@ -1,72 +1,76 @@
-# Integration Readiness — Scree backend spike
+# Integration Readiness — Scree v1
 
-Integrator pass: 2026-05-29. Verifies that independently-implemented features work
-together across the seams (not individual feature correctness — that is the auditor's
-fidelity index, `specs/fidelity/`). Concern is data flow, event chains, shared state,
-identity continuity, and end-to-end workflows.
+Integrator pass (refreshed 2026-05-29, after #79 risk/audit-on-Git, #84 indexer, #86
+O365 poller, and the full frontend). Verifies that independently-implemented features
+work together across the seams — data flow, event chains, shared state, identity
+continuity, end-to-end workflows. (Individual-feature depth is the auditor's fidelity
+index, `specs/fidelity/`.)
 
-Suite at this pass: **207 @api/unit passed**; `@contract` tier runs nightly/on-demand
-(see `.github/workflows/ci.yml`, G-B1).
+Suite at this pass: **233 @api/unit passed**; the `@contract` tier (real Keycloak/
+OpenFGA/Vault/GitLab) runs nightly/on-demand (`.github/workflows/ci.yml`); web: 42.
 
 ## Cross-context test manifest
 
-Each test exercises a seam spanning ≥2 contexts. Runnable under `api/tests/integration/`.
-
-| Test (`api/tests/integration/`) | Seam | Features | Invariants |
-|---|---|---|---|
-| `test_cc_ticket_origin_convergence.py` | surface(web/api/email-poller/slack-bot) → Gateway → servicedesk + o365 + slack + identity + access | ticket_origins, slack_capture, ticket_lifecycle | INV-DP-1, INV-EMAIL-1, INV-SLACK-1, INV-ACC-3 |
-| `test_cc_identity_propagation.py` | surface → Gateway(oidc) → token_exchange → gitlab authority → audit | — | INV-ID-1, INV-ID-3 |
-| `test_cc_aggregation_consistency.py` | query → per-item filter across knowledge + risk | aggregation_permissions, risk_register | INV-AGG, INV-ACC-1 |
-| `test_cc_migration_roundtrip.py` | Atlassian export → migration → knowledge(git) + servicedesk + identity → read endpoints | migration | INV-MIG-1/4, INV-ST-1/2 |
-| `test_cc_degraded_mode.py` | availability → write guard across servicedesk + migration; read path | degradation | INV-DEG-1 |
+| Test (`api/tests/integration/`) | Seam | Invariants |
+|---|---|---|
+| `test_cc_ticket_origin_convergence.py` | web/api/email/slack → Gateway → servicedesk + o365 + slack + identity + access | INV-DP-1, INV-EMAIL-1, INV-SLACK-1, INV-ACC-3 |
+| `test_cc_identity_propagation.py` | surface → Gateway(oidc) → token-exchange → gitlab authority → audit | INV-ID-1, INV-ID-3 |
+| `test_cc_aggregation_consistency.py` | query → per-item filter across knowledge + risk | INV-AGG, INV-ACC-1 |
+| `test_cc_migration_roundtrip.py` | Atlassian export → migration → knowledge(git) + servicedesk + identity → read | INV-MIG-1/4, INV-ST-1/2 |
+| `test_cc_degraded_mode.py` | availability → write guard across servicedesk + migration; read path | INV-DEG-1 |
+| `test_cc_indexer_redundancy.py` | resource change → indexer triggers (webhook OR batch) → index → /search | INV-IX-2, INV-AGG |
+| `test_cc_email_poller_to_ticket.py` | O365/Graph → poller (trusted verdict) → Gateway → ticket/quarantine | INV-EMAIL-1, INV-DP-1 |
 
 ## Graduation checklist
 
-- [x] **Ticket from each origin normalizes to one coherent record** — `test_cc_ticket_origin_convergence`: web/api/email/slack → 4 coherent records (open, private, origin-tagged, opaque external requester via one identity directory).
-- [x] **Aggregation/search provably excludes unauthorized items** — `test_cc_aggregation_consistency` (docs + risks, no id/title/score leak) + planning `existence_hidden`. Consistent across surfaces.
-- [x] **Identity propagates: GitLab audit shows the human, not the gateway** — `test_cc_identity_propagation`: GitLab authority is queried only with the *exchanged* human token; audit records the `sub`. Real-Keycloak exchange is covered by the nightly `@contract` (G-B2, #78).
-- [x] **Degraded mode: GitLab down → reads work, writes refused cleanly** — `test_cc_degraded_mode` + `test_degradation*`.
-- [x] **Migration round-trips with ID mapping intact** — `test_cc_migration_roundtrip`: Confluence→doc visible in `GET /docs` (read from Git), Jira→ticket readable by opaque requester, old→new mapping resolves.
-- [x] **All cross-context interactions examined** — against `specs/cross-context/interactions.md`; see "Seams examined" below.
-- [~] **Indexer redundancy (kill one trigger, data still propagates)** — **N/A in spike.** There is no separate index: reads are live from Git (the source of truth), so a stale/missing index cannot serve wrong data, and the "redundancy" the criterion targets has no machinery to fail. The risk critical-webhook is a returned predicate, not a dispatch. Real batch/webhook/separate-sensitive-index behavior is unbuilt → **#84** (INV-IX-2/4).
-- [~] **All cross-context Gherkin scenarios pass** — **no bound cross-context Gherkin exists.** `specs/cross-context/interactions.md` is prose; the canonical `specs/features/*.feature` are largely unbound (auditor G-D2). Cross-context coverage here is the `test_cc_*` pytest suite. Binding the canonical features → **#98**.
-- [~] **All integration tests pass** — the `@api` cross-context suite passes (207). The `@contract` tier (real Keycloak/OpenFGA/Vault/GitLab) runs nightly/on-demand, not per-PR (G-B1, #76); GitLab + token-exchange contracts are env/version-gated.
+- [x] **Ticket from each origin normalizes to one coherent record** — `test_cc_ticket_origin_convergence`.
+- [x] **Aggregation/search provably excludes unauthorized items** — `test_cc_aggregation_consistency`, planning `existence_hidden`, and `/search` per-item filtered (`test_cc_indexer_redundancy`, `test_indexer`).
+- [x] **Identity propagates: GitLab audit shows the human** — `test_cc_identity_propagation`; real-Keycloak exchange nightly `@contract`.
+- [x] **Degraded mode: GitLab down → reads work, writes refused** — `test_cc_degraded_mode` + `test_degradation*`.
+- [x] **Migration round-trips with ID mapping intact** — `test_cc_migration_roundtrip`.
+- [x] **Indexer redundancy (kill one trigger, data still propagates)** — **now satisfied** (#84): `test_cc_indexer_redundancy` — a change reaches `/search` via the critical webhook OR the batch/manual reindex; a missed webhook is caught by the next batch (INV-IX-2); sensitive categories partitioned (INV-IX-4); manual reindex rate-limited (INV-IX-3). Live GitLab webhook *delivery* remains deploy.
+- [x] **All cross-context interactions examined** — see "Seams" below.
+- [~] **All cross-context Gherkin scenarios pass** — coverage is the `test_cc_*` pytest suite; the canonical `specs/features/*.feature` are largely unbound (auditor G-D2 / #98). Open, low-risk.
+- [~] **All integration tests pass** — the `@api` suite passes (233 backend, 42 web). The `@contract` tier runs nightly, not per-PR (#76); GitLab/token-exchange contracts are env/version-gated.
 
-## Seams examined (interaction map in `specs/cross-context/interactions.md`)
+## Seams examined (map in `specs/cross-context/interactions.md`)
 
-| Interaction | Status | Note |
-|---|---|---|
-| Surface → Gateway (OIDC) → token-exchange → GitLab (identity preserved) | ✅ verified | `test_cc_identity_propagation`; real exchange nightly (#78) |
-| Inbound email (O365) → Gateway → ticket; threading via Message-ID | ✅ logic verified | the Graph **verdict source** is a stub (no poller) → **#86** |
-| Slack reaction → Gateway → draft ticket; identity refused on unmapped | ✅ verified | real Slack API unmodeled → flagged in fidelity |
-| Aggregation/search → per-item filter | ✅ verified | docs+risks+planning; search *endpoint* not built (part of #75/#98) |
-| Resource change → batch/manual/webhook → index | ⚠️ unbuilt | no real indexer → **#84** |
-| GitLab unreachable → reads ok, writes refused | ✅ verified | `test_cc_degraded_mode` |
-| MR-required path → direct commit blocked | ⚠️ app-level only | real enforcement is GitLab branch protection (deploy) → **#80** |
-| Migration: export → Git → indexed → visible, mapping intact | ✅ verified | `test_cc_migration_roundtrip` |
-| Gateway → object store (attachments) | ✅ verified | in-memory object store; participant-only |
+| Interaction | Status |
+|---|---|
+| Surface → Gateway(OIDC) → token-exchange → GitLab (identity preserved) | ✅ `test_cc_identity_propagation`; real exchange nightly |
+| Inbound email: O365/Graph → poller (DKIM/DMARC verdict) → Gateway → ticket | ✅ **now modeled** (#86) — forged A-R distrusted/quarantined (`test_cc_email_poller_to_ticket`); live Graph fetch is deploy |
+| Slack reaction → Gateway → draft ticket; refused on unmapped identity | ✅ verified; real Slack API unmodeled (flagged) |
+| Aggregation/search → per-item filter | ✅ docs+risks+planning + `/search` |
+| Resource change → batch/manual/webhook → index → query | ✅ **now built** (#84) `test_cc_indexer_redundancy` |
+| Risk mutation → Git commit (rebuildable index/store) | ✅ **now real** (#79) `test_risk_git_store` |
+| Audit of every action → tamper-evident sink | ✅ **now hash-chained** (#79) `test_audit_integrity` |
+| GitLab unreachable → reads ok, writes refused | ✅ `test_cc_degraded_mode` |
+| MR-required path → direct commit blocked | ⚠️ app-level only; real enforcement is GitLab branch protection (deploy) → #80 |
+| Migration: export → Git → indexed → visible, mapping intact | ✅ `test_cc_migration_roundtrip` |
+| Gateway → object store (attachments) | ✅ in-memory; participant-only |
 
-No new integration-specific defects were found beyond the seams already tracked by the
-auditor issues (#79, #80, #84, #86, #98). No duplicate issues filed.
+No new integration defects found this pass.
 
-## Readiness recommendation — **CONDITIONAL GO**
+## Readiness recommendation — **GO (deploy- and scope-conditional)**
 
-Every cross-context seam that is *buildable in the backend spike* is wired and green.
-The fast tiers are deep and the boundaries that have real twins are contract-tested
-(nightly). The spike is internally coherent: data crosses boundaries with correct
-transforms, identity survives end-to-end, aggregation filters uniformly, and
-degradation holds.
+Upgraded from the prior CONDITIONAL GO: **the three substantive deferrals are closed.**
+- **#79** — risk register + audit are Git-backed / hash-chained (INV-ST-1, INV-ID-3). ✅
+- **#84** — real indexer with the three-trigger model + redundancy + sensitive partition (INV-IX-1/2/3/4). ✅
+- **#86** — O365/Graph poller models the trusted DKIM/DMARC verdict; forged A-R is distrusted (INV-EMAIL-1, G4-01). ✅
 
-**Readiness is gated on a known, ratified deferral set** (the open auditor issues), which
-a real v1 cutover must either build or have the Head of Engineering accept as out-of-v1:
+**No substantive code gaps remain.** What's left is genuinely deploy-time, scope, or
+out-of-band verification — none require new application logic:
 
-1. **#79 — risk + audit on Git / WORM sink.** Risk register and audit log are in-memory; INV-ST-1 (risk mutations as commits) and INV-ID-3 (tamper-evident sink) are not yet real. *Highest-leverage pre-cutover item.*
-2. **#86 — O365/Graph poller.** The DKIM/DMARC verdict that INV-EMAIL-1 attribution rests on is an injected assumption; no real poller exists.
-3. **#84 — real indexer.** Batch/webhook/separate-sensitive-index machinery is unbuilt; aggregation currently reads live from Git (correct, but the trigger-redundancy guarantee is untested because it has no implementation).
-4. **#76 — `@contract` tier in CI.** Now runs nightly; real-boundary fidelity is verified out-of-band, not on every PR. Acceptable if the nightly is watched.
-5. **#80 — INV-GOV-1 branch protection** (deploy-time config on the GitLab data repos), **#97 — Playwright e2e**, **#98 — bind canonical cross-context features**, **#75 — search endpoint**, **#91 — `age` break-glass scope**, **#92 — reference render**, **#94 — external-write commit trailer** (blocked on ticket Git persistence).
+1. **Deploy config** — #80 GitLab branch protection + CODEOWNERS on the runtime data
+   repos (can't live in this build repo); the `@contract` nightly must be watched (#76);
+   WORM medium / health probe / Graph subscription / GitLab webhook are deploy wiring,
+   documented at the seams.
+2. **Live verification** — no surface has had a real browser + Keycloak + gateway pass;
+   the frontend adversary gate (FE-01) showed why this matters. The top pre-cutover gate.
+3. **Scope / small features** — #91 (`age` break-glass: in v1?), #92 (reference render),
+   #97 (Playwright e2e), #98 (bind canonical features), #75 (search UI), #94 (commit trailer).
 
-**Recommendation:** proceed to a `v1 cutover` readiness review with the Head of Engineering
-using this list. Items 1–3 are the substantive build-or-accept decisions; the rest are
-deploy/frontend/scope. A readiness tag/release should be cut only after that review (the
-`v1 cutover` milestone is the tracking home).
+**Recommendation:** the code is ready to take into a `v1 cutover` review. The blocking
+pre-cutover gate is **live end-to-end verification** against real Keycloak/GitLab/O365;
+the rest is deploy config + scope ratifications. Cut the readiness tag after that
+review (the `v1 cutover` milestone is the tracking home).
