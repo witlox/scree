@@ -2,6 +2,8 @@ import type { ComponentType } from "react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { AuthGate } from "../auth/AuthGate";
+import { AuthProvider } from "../auth/AuthProvider";
 import { QueryProvider } from "../lib/query/QueryProvider";
 
 /** Names map to the React components that may be mounted as islands. Feature
@@ -29,9 +31,13 @@ export function mountIslands(registry: IslandRegistry, root: ParentNode = docume
       : {};
     createRoot(el).render(
       <StrictMode>
-        <QueryProvider>
-          <Component {...props} />
-        </QueryProvider>
+        <AuthProvider>
+          <QueryProvider>
+            <AuthGate>
+              <Component {...props} />
+            </AuthGate>
+          </QueryProvider>
+        </AuthProvider>
       </StrictMode>,
     );
     mounted += 1;

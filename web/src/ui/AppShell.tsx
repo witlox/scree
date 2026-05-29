@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { SessionControls } from "../auth/SessionControls";
+
 /** Top-level information architecture: the four product surfaces. Links resolve to
  *  their (server-routed) pages; surfaces are separate islands per ADR-0003. */
 const SECTIONS = [
@@ -33,6 +35,7 @@ export function AppShell({
             </a>
           ))}
         </nav>
+        <SessionControls />
       </header>
       <main className="app-shell__main" aria-labelledby="shell-title">
         <h1 id="shell-title" className="app-shell__title">
