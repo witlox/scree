@@ -1,0 +1,10 @@
+apiVersion: v2
+name: scree
+description: Git-native knowledge, planning, and service desk (one-image gateway + web)
+type: application
+# Chart version is independent of the app; appVersion tracks the image tag.
+version: 0.1.0
+appVersion: "latest"
+home: https://github.com/witlox/scree
+sources:
+  - https://github.com/witlox/scree

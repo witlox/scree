@@ -1,0 +1,36 @@
+# Example deployment. `docker compose up` runs Scree in DEV mode (dev header auth +
+# in-memory stores) for an instant demo on http://localhost:8000 — no external
+# services needed. For a real deployment, set SCREE_DEV=0 and provide the production
+# environment below (point at your own Keycloak / Vault / OpenFGA / GitLab).
+services:
+  scree:
+    build: .
+    image: ghcr.io/witlox/scree:latest
+    ports:
+      - "8000:8000"
+    environment:
+      # --- DEMO (default): dev header auth, in-memory stores, no externals ---
+      SCREE_DEV: "1"
+
+      # --- PRODUCTION (set SCREE_DEV: "0" and fill these) ---
+      # OIDC_ISSUER: https://keycloak.example/realms/scree
+      # OIDC_AUDIENCE: scree-gateway
+      # OIDC_JWKS_URL: https://keycloak.example/realms/scree/protocol/openid-connect/certs
+      # OIDC_TOKEN_URL: https://keycloak.example/realms/scree/protocol/openid-connect/token
+      # OIDC_CLIENT_ID: scree-gateway
+      # OIDC_CLIENT_SECRET: ${SCREE_OIDC_CLIENT_SECRET}   # via env / secret, never committed
+      # GITLAB_URL: https://gitlab.example
+      # GITLAB_AUDIENCE: gitlab
+      # VAULT_ADDR: https://vault.example
+      # VAULT_TOKEN: ${SCREE_VAULT_TOKEN}
+      # OPENFGA_URL: http://openfga:8080
+      # OPENFGA_STORE_ID: ${SCREE_OPENFGA_STORE_ID}
+      # OPENFGA_MODEL_ID: ${SCREE_OPENFGA_MODEL_ID}
+      # SCREE_DOCS_REPO: /repos/docs        # a Git clone of the knowledge repo
+      # SCREE_RISKS_REPO: /repos/risks
+      # SCREE_SERVICE_PRINCIPALS: svc:poller,svc:slackbot,svc:indexer,svc:migrator
+      # SCREE_COMPLIANCE_PRINCIPALS: dpo:alice
+      # SCREE_AGENT_PRINCIPALS: agent:dani
+      # SCREE_GOVERNED_PREFIXES: policy/,hr/
+    # volumes:
+    #   - ./repos:/repos:rw   # Git working clones for the doc/risk stores

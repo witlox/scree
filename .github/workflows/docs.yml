@@ -1,0 +1,61 @@
+name: docs
+
+# Generates the documentation site from the repo's own sources — narrative
+# (docs/), specs/ (domain model, invariants, architecture, fidelity, findings),
+# every *.feature, and a code-derived API reference — then renders it with mdBook.
+# Builds on every PR (catches broken links / spec drift); deploys to Pages on main.
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["docs/**", "specs/**", "api/scree/**", "book.toml", ".github/workflows/docs.yml"]
+  push:
+    branches: [main]
+    paths: ["docs/**", "specs/**", "api/scree/**", "book.toml", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Generate book sources (specs + features + API reference)
+        working-directory: api
+        run: |
+          python -m pip install -q -r requirements.txt
+      - name: Assemble book
+        env:
+          SCREE_DEV: "1"
+        run: python docs/build.py
+      - name: Install mdBook
+        uses: peaceiris/actions-mdbook@v2
+        with:
+          mdbook-version: latest
+      - run: mdbook build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: book
+
+  deploy:
+    # Deploy only from main; PRs just build (link/structure check).
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

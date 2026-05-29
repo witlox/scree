@@ -1,0 +1,22 @@
+name: dependabot-auto-merge
+
+# Auto-merge Dependabot PRs once CI is green. Grouped + 3-day-cooldown'd updates
+# (see .github/dependabot.yml) are low-risk; branch protection still requires the
+# api-tests / web-tests / bdd checks to pass before the merge actually happens.
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge (squash)
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

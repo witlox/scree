@@ -30,9 +30,15 @@ just report the switch.
 
 ## Current phase
 
-**Pre-analyst.** The seed package is complete (`specs/SEED.md`,
-`docs/analysis/*`). The likely next mode is **analyst**, producing the
-`specs/` artifacts per SEED §9.
+**Release engineering / v1 cutover prep.** Every diamond role has run at least
+once: specs, architecture/ADRs, `api/` + `web/` code, adversary gates, the
+auditor fidelity index, and an integrator **GO** all exist (see `specs/findings/`,
+`specs/fidelity/`, `specs/integration/readiness.md`). Delivery substrate is being
+stood up (Docker one-image, mdBook → Pages via `docs/build.py`, Dependabot,
+Wednesday release, Helm chart). The open gate is **live-infra verification**
+(real Keycloak/GitLab/Vault/OpenFGA + browser); follow-ups in
+`specs/fidelity/gaps.md`. Mode is still inferred per turn — a change request in
+any area re-enters that role.
 
 ## Role profiles
 
