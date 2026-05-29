@@ -688,8 +688,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/DocSummaryOut"
                   },
                   "title": "Response List Docs Docs Get"
                 }
@@ -761,9 +760,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Write Doc Docs Post"
+                  "$ref": "#/components/schemas/DocWriteOut"
                 }
               }
             }
@@ -834,9 +831,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Doc Docs  Doc Id  Get"
+                  "$ref": "#/components/schemas/DocDetailOut"
                 }
               }
             }
@@ -909,8 +904,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/DocVersionOut"
                   },
                   "title": "Response Get Doc Versions Docs  Doc Id  Versions Get"
                 }
@@ -2305,6 +2299,173 @@
           "content"
         ],
         "title": "Body_write_doc_docs_post"
+      },
+      "DocDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "space": {
+            "type": "string",
+            "title": "Space"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "rev": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rev"
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "space",
+          "body",
+          "schema_version",
+          "path",
+          "rev",
+          "created",
+          "updated"
+        ],
+        "title": "DocDetailOut"
+      },
+      "DocSummaryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "space": {
+            "type": "string",
+            "title": "Space"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "space"
+        ],
+        "title": "DocSummaryOut"
+      },
+      "DocVersionOut": {
+        "properties": {
+          "rev": {
+            "type": "string",
+            "title": "Rev"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rev",
+          "author",
+          "date",
+          "message"
+        ],
+        "title": "DocVersionOut"
+      },
+      "DocWriteOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "space": {
+            "type": "string",
+            "title": "Space"
+          },
+          "rev": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rev"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "space",
+          "rev"
+        ],
+        "title": "DocWriteOut"
       },
       "HTTPValidationError": {
         "properties": {

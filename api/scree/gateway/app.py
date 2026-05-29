@@ -96,6 +96,40 @@ class AttachmentIn(BaseModel):
     filename: str
     content: str  # text payload for the spike (real impl streams bytes to object storage)
 
+
+# Response models — so the OpenAPI schema is precise and the web client's types are
+# GENERATED (not hand-written). See .claude/coding/typescript.md.
+class DocSummaryOut(BaseModel):
+    id: str
+    title: str
+    space: str
+
+
+class DocDetailOut(BaseModel):
+    id: str
+    title: str
+    space: str
+    body: str
+    schema_version: int
+    path: str | None
+    rev: str | None
+    created: str | None
+    updated: str | None
+
+
+class DocVersionOut(BaseModel):
+    rev: str
+    author: str
+    date: str
+    message: str
+
+
+class DocWriteOut(BaseModel):
+    id: str
+    path: str
+    space: str
+    rev: str | None
+
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
 LAST_KNOWN_MAX_AGE = 900.0  # G-A2: outage staleness bound (s) before membership fails closed
@@ -417,14 +451,14 @@ def create_app(
             result["never_indexed"] = as_of is None  # G3-03: explicit unknown-staleness signal
             return result
 
-    @app.get("/docs")
+    @app.get("/docs", response_model=list[DocSummaryOut])
     def list_docs(request: Request, principal: str = Depends(get_principal)) -> list[dict]:
         # INV-AGG: filter EVERY item by the requester's authority, per request.
         readable = _readable_spaces(principal, request)
         return [{"id": d.id, "title": d.title, "space": d.space}
                 for d in store.all() if d.space in readable]
 
-    @app.get("/docs/{doc_id}")
+    @app.get("/docs/{doc_id}", response_model=DocDetailOut)
     def get_doc(doc_id: str, request: Request, principal: str = Depends(get_principal)) -> dict:
         d = store.get(doc_id)
         if d is None or d.space not in _readable_spaces(principal, request):
@@ -437,7 +471,7 @@ def create_app(
                 "schema_version": d.schema_version, "path": d.path, "rev": rev,
                 "created": d.created, "updated": d.updated}
 
-    @app.get("/docs/{doc_id}/versions")
+    @app.get("/docs/{doc_id}/versions", response_model=list[DocVersionOut])
     def get_doc_versions(doc_id: str, request: Request, principal: str = Depends(get_principal)) -> list[dict]:
         d = store.get(doc_id)
         if d is None or d.space not in _readable_spaces(principal, request):
@@ -449,7 +483,7 @@ def create_app(
 
     if doc_writer is not None:
 
-        @app.post("/docs")
+        @app.post("/docs", response_model=DocWriteOut)
         def write_doc(
             path: str = Body(..., embed=True),
             content: str = Body(..., embed=True),

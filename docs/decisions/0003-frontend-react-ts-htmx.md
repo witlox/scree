@@ -60,11 +60,11 @@ ADR prescribes. Rationale: the gateway is JSON-only today (no Jinja2/HTML layer)
 and the foundation is React-islands; shipping one stack was the pragmatic path to a
 working surface. Accepted trade-off, to revisit:
 
-- The reader currently mounts TipTap (read-only render), so the **read path pulls
-  the full editor bundle** — exactly what htmx-for-reading was meant to avoid. The
-  v1 bundle is ~730 kB (242 kB gz).
-- **Revisit:** either (a) stand up the htmx + Jinja2 reader per this ADR, or (b)
-  code-split the editor island and render the reader with a lightweight
-  markdown→HTML path. Tracked alongside the Frontend v1 milestone.
+- **Read-path weight — resolved (2026-05-29):** the reader now renders markdown via
+  `marked` + `DOMPurify` (no TipTap on the read path), and the editor's TipTap is
+  code-split into a lazy chunk (~492 kB) loaded only when editing. The initial /
+  reader bundle is ~304 kB (96 kB gz), down from ~730 kB. Option (a) — a full
+  htmx + Jinja2 server-rendered reader — remains the longer-term path if we want
+  reads off React entirely, but the read path is now light.
 
 This does not change the ratified decision; it records where v1 diverged and why.

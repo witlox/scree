@@ -3,20 +3,23 @@ import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import { useEffect, useRef } from "react";
 
+/** Imperative handle the editor hands to its parent, so the parent can read markdown
+ *  on save WITHOUT statically importing TipTap (keeps this whole module code-split). */
+export interface TiptapApi {
+  getMarkdown: () => string;
+}
+
 /**
- * Mounts a TipTap editor (ADR-0009) into a div. Markdown is the wire format both
- * ways (tiptap-markdown). `editable=false` renders a doc read-only; the editor uses
- * `editable=true`. `onReady` hands the parent the instance to read markdown on save.
- * Remount on document change by setting a `key` on this component.
+ * Editable TipTap surface (ADR-0009). Markdown is the wire format (tiptap-markdown).
+ * This module is loaded lazily by the editor only, so TipTap/ProseMirror stay out of
+ * the reader and initial bundle (the reader renders markdown via MarkdownView).
  */
 export function Tiptap({
   markdown,
-  editable,
   onReady,
 }: {
   markdown: string;
-  editable: boolean;
-  onReady?: (editor: Editor) => void;
+  onReady?: (api: TiptapApi) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
 
@@ -26,13 +29,15 @@ export function Tiptap({
       element: elRef.current,
       extensions: [StarterKit, Markdown],
       content: markdown,
-      editable,
+      editable: true,
     });
-    onReady?.(editor);
+    // tiptap-markdown augments editor.storage at runtime but ships no type for it.
+    const storage = editor.storage as unknown as { markdown: { getMarkdown(): string } };
+    onReady?.({ getMarkdown: () => storage.markdown.getMarkdown() });
     return () => editor.destroy();
-    // Mount once with the initial markdown; callers remount via `key` to load a new doc.
+    // Mount once with the initial markdown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return <div ref={elRef} className="doc-prose" data-editable={editable} />;
+  return <div ref={elRef} className="doc-prose doc-prose--editable" data-editable="true" />;
 }
