@@ -1,11 +1,41 @@
 # Fidelity Index
 
-Last checkpoint: 2026-05-29
-Status: CHECKPOINT (baseline) — 14 of 24 gaps fixed in `fix/auditor-findings`; 10 flagged (see `gaps.md` Resolution)
-Scope: `api/` backend. Suite at audit time — **187 passed** (non-contract), **11 passed / 1 skipped** (contract, local Docker only). Web (`web/`, vitest) not audited here.
+Last checkpoint: 2026-05-29 (**REFRESH** — full-stack)
+Status: CHECKPOINT — baseline gaps largely resolved; frontend now measured (`frontend.md`)
+Scope: `api/` backend **+ `web/` frontend**. Suite now — **233 @api/unit passed**;
+`@contract` tier **7 files** runs nightly/on-demand; **web: 42 passed**.
 
 > The auditor measures; it does not fix. Gaps route to the implementer (see `gaps.md`).
-> Detail: Phase 1 depth → `coverage.md` · Phase 2 boundaries → `boundaries.md` · Phase 3 enforcement → `enforcement.md` · Phase 4 + priorities → `gaps.md`.
+> Detail: Phase 1 depth → `coverage.md` · frontend → `frontend.md` · Phase 2 boundaries
+> → `boundaries.md` · Phase 3 enforcement → `enforcement.md` · Phase 4 + priorities → `gaps.md`.
+
+## Refresh checkpoint (2026-05-29) — what changed since the baseline
+
+The baseline's three structural gaps and most of the 24 findings are **resolved**:
+
+1. **`@contract` tier now runs** — a nightly/on-demand CI job runs `pytest -m contract`
+   (G-B1); the tier grew to 7 files (added Keycloak token-exchange G-B2 and GitLab
+   `readable_spaces` pagination G-B3). Real-boundary drift is now detectable out-of-band.
+2. **Risk + audit are no longer in-memory** — `GitBackedRiskStore` (risk mutations are
+   commits, INV-ST-1; rebuildable, INV-ST-2) and a **hash-chained** audit sink with
+   `verify()` (INV-ID-3 integrity). (#79)
+3. **Real indexer** (#84) — three triggers (batch/manual rate-limited + critical webhook),
+   separate sensitive partition, batch-catches-missed-webhook redundancy (INV-IX-1/2/3/4),
+   and a `GET /search` with the per-item INV-AGG filter.
+4. **O365/Graph verdict modeled** (#86) — the DKIM/DMARC verdict is read from our mail
+   infra's `Authentication-Results`; attacker-embedded A-R is distrusted (INV-EMAIL-1/G4-01).
+5. **Frontend measured + adversary-hardened** — 42 web tests; Frontend Gate 1's 10
+   findings (auth race FE-01, etc.) all resolved. See `frontend.md`.
+
+**Still open (none are substantive code gaps):** G-A3 (GitLab branch-protection — deploy
+config), G-A6/#83 (closed-risk-via-MR endpoint — now buildable on Git-backed risks, not
+yet built), G-A12 (`age` break-glass — v1 scope question), G-A13 (reference-render
+feature), G-A15 (commit trailer — blocked on ticket Git persistence), G-D1/#97 (Playwright
+e2e), G-D2/#98 (bind canonical features), and the standing **live browser+Keycloak+GitLab
+verification** (the top cross-cutting gate — what the mocked tests and nightly-only
+contract tier cannot prove).
+
+— The sections below are the **baseline** measurement; the deltas above supersede them. —
 
 ## Headline
 
