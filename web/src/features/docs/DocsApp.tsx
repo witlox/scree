@@ -18,7 +18,7 @@ export function DocsApp({ space }: { space?: string }) {
   const [view, setView] = useState<View>({ mode: "list" });
 
   return (
-    <AppShell title="Knowledge">
+    <AppShell title="Knowledge" current="knowledge">
       {view.mode === "list" && (
         <DocList
           onOpen={(id) => setView({ mode: "view", id })}

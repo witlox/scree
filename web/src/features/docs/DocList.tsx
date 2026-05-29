@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "../../ui/Button";
 import { docsApi, docsKeys } from "./api";
 
 export function DocList({ onOpen, onNew }: { onOpen: (id: string) => void; onNew: () => void }) {
@@ -12,15 +13,15 @@ export function DocList({ onOpen, onNew }: { onOpen: (id: string) => void; onNew
     <section aria-labelledby="doclist-h">
       <div className="doc-toolbar">
         <h2 id="doclist-h">Docs</h2>
-        <button type="button" onClick={onNew}>
+        <Button variant="primary" onClick={onNew}>
           New doc
-        </button>
+        </Button>
       </div>
 
       {isLoading && <p role="status">Loading docs…</p>}
       {isError && (
         <p role="alert">
-          Couldn’t load docs. <button type="button" onClick={() => void refetch()}>Retry</button>
+          Couldn’t load docs. <Button onClick={() => void refetch()}>Retry</Button>
         </p>
       )}
       {data && data.length === 0 && <p>No docs you can read yet.</p>}

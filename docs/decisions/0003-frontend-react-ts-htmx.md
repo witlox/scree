@@ -48,7 +48,8 @@ technology own a given DOM region — never both on the same region.
 ## Open follow-ups (architect)
 
 - Specific WYSIWYG editor library (TipTap vs BlockNote vs Milkdown — OQ-X-002)
-- Specific admin framework (e.g. Refine.dev) for internal screens
+- Specific admin framework for internal screens — **resolved by ADR-0011**
+  (TanStack Table + Radix UI, headless, MIT-only)
 - API types are generated from the gateway OpenAPI spec (no hand-maintained
   duplicates)
 
