@@ -1,0 +1,77 @@
+/* Mobile-first base. One codebase serves mobile and desktop; layout widens at
+   breakpoints. Accessibility is a requirement (WCAG 2.1 AA), not polish. */
+:root {
+  --space: 1rem;
+  --max-content: 72rem;
+  --tap-min: 44px; /* WCAG 2.5.5 target size */
+  --focus: #1a73e8;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  line-height: 1.5;
+}
+
+/* Mobile-first: single column, fluid; capped and centered on wide viewports. */
+.app-shell__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  padding: var(--space);
+}
+
+.app-shell__title {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.app-shell__main {
+  width: 100%;
+  max-width: var(--max-content);
+  margin: 0 auto;
+  padding: var(--space);
+}
+
+/* Comfortable touch targets for interactive controls. */
+button,
+a[role="button"],
+.tap {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+}
+
+/* Always-visible keyboard focus (WCAG 2.4.7). */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --space: 1.5rem;
+  }
+  .app-shell__title {
+    font-size: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

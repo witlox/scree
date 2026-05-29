@@ -10,7 +10,9 @@ export function roundTrip(md: string): string {
     content: md,
   });
   try {
-    return editor.storage.markdown.getMarkdown();
+    // tiptap-markdown augments editor.storage at runtime but ships no type for it.
+    const storage = editor.storage as unknown as { markdown: { getMarkdown(): string } };
+    return storage.markdown.getMarkdown();
   } finally {
     editor.destroy();
   }
