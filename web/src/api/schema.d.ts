@@ -108,6 +108,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/index/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reindex */
+        post: operations["reindex_index_reindex_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/index/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Index Event */
+        post: operations["index_event_index_events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search */
+        get: operations["search_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/planning/portfolio": {
         parameters: {
             query?: never;
@@ -449,6 +500,11 @@ export interface components {
             /** Sender */
             sender?: string | null;
         };
+        /** Body_index_event_index_events_post */
+        Body_index_event_index_events_post: {
+            /** Risk Id */
+            risk_id: string;
+        };
         /** Body_slack_capture_slack_capture_post */
         Body_slack_capture_slack_capture_post: {
             /** Reactor */
@@ -688,6 +744,26 @@ export interface components {
             severity: string;
             /** Fires Critical Webhook */
             fires_critical_webhook: boolean;
+        };
+        /** SearchHitOut */
+        SearchHitOut: {
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Title */
+            title: string;
+            /** Space */
+            space: string;
+        };
+        /** SearchResultsOut */
+        SearchResultsOut: {
+            /** Results */
+            results: components["schemas"]["SearchHitOut"][];
+            /** As Of */
+            as_of: string | null;
+            /** Never Indexed */
+            never_indexed: boolean;
         };
         /** SourceItemIn */
         SourceItemIn: {
@@ -1073,6 +1149,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrphanReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reindex_index_reindex_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-spike-user"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    index_event_index_events_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-spike-user"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Body_index_event_index_events_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_search_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: {
+                authorization?: string | null;
+                "x-spike-user"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResultsOut"];
                 };
             };
             /** @description Validation Error */

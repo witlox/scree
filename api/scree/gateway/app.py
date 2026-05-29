@@ -26,6 +26,7 @@ from scree.knowledge.doc_service import Forbidden as DocForbidden
 from scree.knowledge.frontmatter import InvalidFrontmatter
 from scree.knowledge.git_store import GitWriteError
 from scree.knowledge.store import DocStore
+from scree.indexing.index import Index, entries_from, entry_from_risk
 from scree.indexing.orphans import OrphanCache, detect_orphans
 from scree.planning.authority import PlanningAuthority
 from scree.planning.index import PlanningIndex
@@ -228,6 +229,19 @@ class CommunityHitOut(BaseModel):
 class PreferenceOut(BaseModel):
     preference: str | None
 
+
+class SearchHitOut(BaseModel):
+    id: str
+    kind: str
+    title: str
+    space: str
+
+
+class SearchResultsOut(BaseModel):
+    results: list[SearchHitOut]
+    as_of: str | None
+    never_indexed: bool
+
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
 LAST_KNOWN_MAX_AGE = 900.0  # G-A2: outage staleness bound (s) before membership fails closed
@@ -333,6 +347,8 @@ def create_app(
     services = service_principals or set()
     archived = archived_spaces or set()
     orphan_cache = OrphanCache()
+    search_index = Index()  # #84: derived, rebuildable-from-Git search index
+    reindex_limiter = CaptureRateLimiter(limit=3, window=60.0)  # INV-IX-3: manual reindex is rate-limited
     id_map = IdMap()  # migration old→new id mapping (INV-MIG-1), survives the app's lifetime
     archive_store = ArchiveStore()
     prefs = preference_store or PreferenceStore()  # portal self-service preferences
@@ -526,6 +542,46 @@ def create_app(
         resources = {sp: ids for sp, ids in report.resources.items() if authority.can_write(principal, sp)}
         tickets = {sp: ids for sp, ids in report.tickets.items() if authority.can_write(principal, sp)}
         return {"resources": resources, "tickets": tickets, "as_of": report.as_of, "computed": True}
+
+    # --- search index (#84) — three triggers (DD-005): batch + manual (rebuild),
+    # critical webhook (upsert one). Git is truth; the index is rebuildable (INV-ST-2).
+    def _index_entries() -> list:
+        risks = risk_store.all() if risk_store is not None else []
+        return entries_from(store.all(), risks)
+
+    @app.post("/index/reindex")
+    def reindex(principal: str = Depends(get_principal)) -> dict:
+        # Hourly batch AND manual trigger. INV-IX-3: authenticated + rate-limited (else
+        # a DoS vector). A full rebuild from Git catches anything a webhook missed (INV-IX-2).
+        if not reindex_limiter.allow(principal):
+            raise HTTPException(status_code=429, detail="reindex rate limit exceeded")
+        search_index.rebuild(_index_entries())
+        return {"indexed": search_index.size(), "as_of": search_index.as_of()}
+
+    @app.post("/index/events")
+    def index_event(risk_id: str = Body(..., embed=True), principal: str = Depends(get_principal)) -> dict:
+        # Critical webhook (INV-IX-1): GitLab posts here on a security/compliance risk
+        # change. Service-principal only. We re-read the risk from Git and upsert by id —
+        # idempotent, payload-independent (a duplicate webhook is a no-op; INV-IX-2).
+        if principal not in services:
+            raise HTTPException(status_code=403, detail="index events are service-principal only")
+        if risk_store is None:
+            raise HTTPException(status_code=404)
+        risk = risk_store.get(risk_id)
+        if risk is None:
+            raise HTTPException(status_code=404)
+        search_index.upsert(entry_from_risk(risk))
+        return {"indexed": risk.id, "sensitive": search_index.is_sensitive(risk.id)}
+
+    @app.get("/search", response_model=SearchResultsOut)
+    def search(q: str, request: Request, principal: str = Depends(get_principal)) -> dict:
+        # Aggregation/search → index → per-item authority filter (INV-AGG): only entries
+        # in the requester's readable Spaces, every request. Sensitive entries live in a
+        # separate partition (INV-IX-4) but are still space-filtered here.
+        readable = _readable_spaces(principal, request)
+        hits = [e for e in search_index.search(q, include_sensitive=True) if e.space in readable]
+        return {"results": [{"id": e.id, "kind": e.kind, "title": e.title, "space": e.space} for e in hits],
+                "as_of": search_index.as_of(), "never_indexed": search_index.as_of() is None}
 
     if planning_index is not None and planning_authority is not None:
 

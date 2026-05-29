@@ -101,7 +101,7 @@ backend-tractable gaps were fixed; the rest are flagged with a concrete blocker
 - **G-A6** — closed-risk-via-MR: blocked on G-C1 (risks not on Git).
 - **G-A15** — external-write desk-SA commit trailer: blocked on ticket Git persistence.
 - **G-A3** — INV-GOV-1: real enforcement is GitLab branch protection + CODEOWNERS on the *runtime data repos*, not this build repo; a CODEOWNERS here would enforce nothing. Deploy concern + a CODEOWNERS template is the right artifact.
-- **G-A7** — INV-IX-2/4 batch backstop + separate sensitive index: needs a real indexer (webhook is a bool today).
+- **G-A7** — ✅ **resolved (2026-05-29, #84):** real indexer (`indexing/index.py`) with the three triggers — `POST /index/reindex` (batch + manual, rate-limited per INV-IX-3), `POST /index/events` (critical webhook, INV-IX-1, idempotent re-read), and a separate sensitive partition (INV-IX-4); a missed webhook is caught by the next rebuild (INV-IX-2). `GET /search` queries it with the per-item INV-AGG filter. The live GitLab webhook delivery is a deploy concern; the trigger logic + redundancy are tested.
 - **G-A13** — INV-REF render layer (unavailable / opaque target_id): needs a reference-resolution feature.
 - **G-B4** — O365/Graph DKIM/DMARC verdict seam: no real twin exists; needs a Graph poller integration.
 - **G-A12** — ADR-0008 client-side `age` break-glass: v1 scope question (ratify before building).
