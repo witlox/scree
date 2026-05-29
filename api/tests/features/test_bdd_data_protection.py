@@ -7,9 +7,10 @@ from fastapi.testclient import TestClient
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from scree.access.authority import Authority
+from scree.access.identity import IdentityDirectory
 from scree.access.openfga import FakeOpenFga
 from scree.access.ticket_authority import TicketAuthority
-from scree.crypto.transit import FernetCrypto
+from scree.crypto.transit import FernetCrypto, VaultTransitCrypto
 from scree.gateway.app import create_app
 from scree.knowledge.store import DocStore
 from scree.servicedesk.comments import CommentStore
@@ -19,7 +20,9 @@ from scree.servicedesk.store import TicketStore
 scenarios("data_protection.feature")
 
 AGENT = "agent:dani"
+DPO = "dpo:alice"
 SECRET = "my secret API key is 12345"
+VAULT_TOKEN = "root-token-test"
 
 
 @pytest.fixture
@@ -101,3 +104,114 @@ def not_retroactive(world):
 def opaque_requester(world):
     requester = world["store"].get(world["ticket_id"]).requester
     assert "@" not in requester and requester.startswith("ext")  # opaque id, no PII (INV-DP-1)
+
+
+# --- @contract: GDPR erasure + crypto-shred against a REAL Vault (testcontainers) ---
+@pytest.fixture(scope="module")
+def vault_base():
+    import time
+
+    import httpx
+
+    pytest.importorskip("testcontainers.core.container")
+    from testcontainers.core.container import DockerContainer
+
+    container = None
+    try:
+        container = (
+            DockerContainer("hashicorp/vault:1.15")
+            .with_env("VAULT_DEV_ROOT_TOKEN_ID", VAULT_TOKEN)
+            .with_env("VAULT_DEV_LISTEN_ADDRESS", "0.0.0.0:8200")
+            .with_exposed_ports(8200)
+            .with_command("server -dev")
+        )
+        container.start()
+        base = f"http://{container.get_container_host_ip()}:{container.get_exposed_port(8200)}"
+        h = {"X-Vault-Token": VAULT_TOKEN}
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            try:
+                if httpx.get(f"{base}/v1/sys/health", timeout=2).status_code in (200, 429):
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+        else:
+            pytest.skip("Vault did not become healthy")
+        httpx.post(f"{base}/v1/sys/mounts/transit", headers=h, json={"type": "transit"}, timeout=10)
+    except Exception as exc:
+        if container is not None:
+            try:
+                container.stop()
+            except Exception:
+                pass
+        pytest.skip(f"Docker/Vault unavailable: {exc}")
+    try:
+        yield base
+    finally:
+        container.stop()
+
+
+@pytest.fixture
+def vworld(vault_base) -> dict:
+    store = TicketStore()
+    identity = IdentityDirectory()
+    app = create_app(
+        DocStore([]), Authority({}),
+        ticket_store=store, ticket_authority=TicketAuthority(FakeOpenFga(), {AGENT}),
+        comment_store=CommentStore(), ticket_crypto=VaultTransitCrypto(vault_base, VAULT_TOKEN),
+        identity_directory=identity, compliance_principals={DPO},
+        allow_insecure_header_auth=True,
+    )
+    return {"store": store, "identity": identity, "client": TestClient(app), "oid": None, "erase": None}
+
+
+@given(parsers.parse('customer "{cust}" owns ticket "{ticket_id}"'))
+def owns_ticket(vworld, cust, ticket_id):
+    oid = vworld["identity"].resolve(cust)
+    vworld["store"].put(Ticket(id=ticket_id, requester=oid))
+    vworld["oid"], vworld["plain_ticket"] = oid, ticket_id
+
+
+@given(parsers.parse('customer "{cust}" owns encrypted ticket "{ticket_id}"'))
+def owns_encrypted_ticket(vworld, cust, ticket_id):
+    oid = vworld["identity"].resolve(cust)
+    created = vworld["client"].post(
+        "/tickets", json={"origin": "web", "encrypt": True, "body": SECRET}, headers={"X-Spike-User": oid}
+    )
+    vworld["oid"], vworld["enc_ticket"] = oid, created.json()["id"]
+
+
+@when(parsers.parse('a GDPR erasure request for "{cust}" is fulfilled'))
+def erasure_fulfilled(vworld, cust):
+    vworld["erase"] = vworld["client"].delete(f"/identities/{vworld['oid']}", headers={"X-Spike-User": DPO})
+
+
+@then(parsers.parse('the identity-directory record for "{cust}" is deleted'))
+def identity_deleted(vworld, cust):
+    assert vworld["identity"].email_for(vworld["oid"]) is None
+
+
+@then(parsers.parse('"{ticket_id}" remains but its requester id is unresolvable'))
+def ticket_remains_unresolvable(vworld, ticket_id):
+    t = vworld["store"].get(ticket_id)
+    assert t is not None  # Git not rewritten — the ticket stays
+    assert vworld["identity"].email_for(t.requester) is None  # but the opaque id no longer resolves
+
+
+@then("Git history is not rewritten")
+def git_not_rewritten(vworld):
+    assert "Git" in vworld["erase"].json()["residual"]
+
+
+@then("the per-requester key is destroyed")
+def key_destroyed(vworld):
+    assert vworld["erase"].json()["crypto_shredded"] is True
+
+
+@then(parsers.parse('the encrypted body of "{ticket_id}" is permanently unrecoverable'))
+def body_unrecoverable(vworld, ticket_id):
+    comments = vworld["client"].get(
+        f"/tickets/{vworld['enc_ticket']}/comments", headers={"X-Spike-User": AGENT}
+    ).json()
+    assert any("unrecoverable" in c["body"] for c in comments)  # key gone → crypto-shred
