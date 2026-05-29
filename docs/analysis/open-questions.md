@@ -198,7 +198,11 @@ These need explicit stakeholder input. The analyst should surface them; the head
 
 **OQ-HE-001**: Ratify `severity: critical` definition.
 
-**OQ-HE-002**: Ratify external customer portal v1 minimum feature set.
+**OQ-HE-002**: Ratify external customer portal v1 minimum feature set. **RESOLVED**
+(2026-05-29) → **broadest scope ratified**: core ticketing (submit / view-own /
+reply + attachment / status) + community KB search + self-service notification
+preferences (all `portal.feature` scenarios). Backend already supports it; unblocks the
+portal UI build (#102).
 
 **OQ-HE-003**: Ratify pre-cutover validation gates.
 
