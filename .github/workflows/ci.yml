@@ -14,7 +14,7 @@ jobs:
     name: api-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: uv + pytest (@api / unit)
         working-directory: api
         run: |
@@ -30,7 +30,7 @@ jobs:
     # this surfaces them as their own visible/required check. (@e2e browser BDD: #97.)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: uv + pytest -m api
         working-directory: api
         run: |
@@ -43,13 +43,13 @@ jobs:
   contract-tests:
     name: contract-tests
     # G-B1: the @contract tier boots real services (Keycloak/OpenFGA/Vault) via
-    # testcontainers to catch stub-vs-real drift. Docker-heavy, so it runs nightly
-    # and on-demand rather than blocking every PR. GitLab @contract tests still skip
-    # unless GITLAB_TEST_URL/GITLAB_TEST_TOKEN are provided.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # testcontainers to catch stub-vs-real drift — including the canonical @contract
+    # gherkin (e.g. crypto-shred against a real Vault). Runs on every PR/push (GitHub
+    # runners have Docker); the schedule keeps a nightly heartbeat. GitLab @contract
+    # tests still skip unless GITLAB_TEST_URL/GITLAB_TEST_TOKEN are provided.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: uv + pytest (@contract)
         working-directory: api
         run: |
@@ -66,8 +66,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - run: corepack enable
@@ -85,8 +85,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
       - run: corepack enable

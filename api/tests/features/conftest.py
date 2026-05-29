@@ -7,21 +7,25 @@ the testcontainers contract tier and the Playwright browser tier — so the @api
 stays in-process while still *collecting* every canonical scenario for traceability.
 """
 
+import importlib.util
 import subprocess
 from pathlib import Path
 
 import pytest
 
+# @contract scenarios run against real disposable services (testcontainers). When
+# testcontainers isn't installed — the fast `api-tests` job — they skip; the
+# `contract-tests` job installs it (and has Docker), so they execute there.
+_HAS_TESTCONTAINERS = importlib.util.find_spec("testcontainers") is not None
+
 
 def pytest_bdd_apply_tag(tag, function):
     # @api/@security stay as normal pytest markers (handled by pytest-bdd's default).
-    if tag in ("contract", "e2e"):
-        marker = pytest.mark.skip(
-            reason=f"@{tag}: exercised by the {tag} tier "
-            f"({'tests/contract (real services)' if tag == 'contract' else 'web Playwright harness'}), "
-            "not the in-process @api BDD run"
-        )
-        marker(function)
+    if tag == "e2e":
+        pytest.mark.skip(reason="@e2e: exercised by the web Playwright harness, not the BDD run")(function)
+        return True
+    if tag == "contract" and not _HAS_TESTCONTAINERS:
+        pytest.mark.skip(reason="@contract: needs testcontainers (runs in the contract-tests job)")(function)
         return True
     return None
 

@@ -1,7 +1,8 @@
 # Fidelity — Frontend (`web/`)
 
 First fidelity measurement of the frontend (the baseline index was `api/`-only).
-**14 test files / 42 tests**, all green. Vite + React 19 + TS strict; vitest (jsdom).
+**14 test files / 42 vitest tests** + **6 Playwright `@e2e`** (REFRESH 2), all green.
+Vite + React 19 + TS strict; vitest (jsdom) + Playwright (Chromium, desktop + mobile).
 
 ## Depth by area
 
@@ -27,13 +28,16 @@ the security-sensitive render path (sanitization) are tested directly.
 |---|---|---|
 | Frontend → Gateway (HTTP) | `fetch` mocked / routed per test | stubbed — `@api`-equivalent depth |
 | Browser → Keycloak (OIDC login) | `useAuth` mocked (`react-oidc-context`) | stubbed; real auth-code+PKCE flow **never exercised** |
-| End-to-end (`@e2e` Playwright) | config exists; **not run** (no browser/Keycloak) | **UNVERIFIED** |
+| End-to-end (`@e2e` Playwright) | **runs** (REFRESH 2): real `CustomerPortal` island in Chromium (host page), desktop + mobile, **API route-mocked**; `web-e2e` CI job | **PARTIAL** — real UI journeys verified; real gateway/Keycloak still mocked |
 
-**This is the frontend's defining gap, exactly analogous to the backend's `@contract`
-tier:** the component tests mock the gateway and the auth hook, so they cannot catch
-real-integration bugs. **FE-01 (the post-login token race) was precisely such a bug** —
-green under mocks, broken against a real Keycloak. The Playwright `@e2e` tier (#97/G-D1)
-is wired but unrun; a live browser + Keycloak + gateway pass is the top frontend gate.
+**REFRESH 2 (2026-05-29):** the `@e2e` tier now exists (`web/e2e/`, a dependency-free
+runner reading the canonical `specs/features`). It drives the *real* `CustomerPortal`
+island in a browser across both viewports, so it catches **UI-journey** regressions —
+but the API and auth are **route-mocked**, so it still cannot catch real-integration
+bugs. **FE-01 (the post-login token race) was precisely such a bug** — green under mocks,
+broken against a real Keycloak. So the frontend's defining gap is **narrowed, not closed**:
+a live browser + **real Keycloak** + gateway pass remains the top frontend gate (the
+`docs` WYSIWYG @e2e is also still `fixme` pending a verified Tiptap round-trip).
 
 ## Generated types
 
@@ -51,5 +55,7 @@ highest-risk area and the one the mocked tests are blind to.
 ## Confidence
 
 **High** for component logic, design-system accessibility, and the sanitization path;
-**unverified** for the real end-to-end (browser + Keycloak + gateway) — the single
-outstanding frontend risk, tracked as live verification + #97.
+**medium** for browser UI journeys (now exercised by the route-mocked `@e2e` tier);
+**unverified** for the real end-to-end with a live Keycloak + gateway — the single
+outstanding frontend risk, tracked as live verification (the `@e2e` harness exists but
+mocks the boundary; #97's live-auth leg remains).
