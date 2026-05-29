@@ -97,6 +97,10 @@ class AttachmentIn(BaseModel):
     content: str  # text payload for the spike (real impl streams bytes to object storage)
 
 
+class CommentReplyIn(BaseModel):
+    body: str
+
+
 # Response models — so the OpenAPI schema is precise and the web client's types are
 # GENERATED (not hand-written). See .claude/coding/typescript.md.
 class DocSummaryOut(BaseModel):
@@ -187,6 +191,42 @@ class ErasureReceiptOut(BaseModel):
     identity_removed: bool
     relations_purged: int
     quarantine_purged: int
+
+
+# Portal (#102) response models — exact field match so existing assertions hold.
+class TicketCreatedOut(BaseModel):
+    id: str
+    requester: str
+    origin: str
+    status: str
+    community_visible: bool
+    encrypted: bool
+
+
+class TicketDetailOut(BaseModel):
+    id: str
+    requester: str | None
+    status: str
+    community_visible: bool
+
+
+class CommentOut(BaseModel):
+    author: str
+    body: str
+    source: str
+
+
+class AttachmentOut(BaseModel):
+    filename: str
+    object_key: str
+
+
+class CommunityHitOut(BaseModel):
+    id: str
+
+
+class PreferenceOut(BaseModel):
+    preference: str | None
 
 MAX_INBOUND_EMAIL_BYTES = 1_000_000  # G4-06: bound inbound email like doc content (G2-07)
 MAX_COMMENT_BYTES = 1_000_000  # G8-03: bound ticket body / Slack snapshot comments
@@ -458,11 +498,11 @@ def create_app(
         orphan_cache.report = report
         return {"refreshed": True, "as_of": report.as_of}
 
-    @app.get("/portal/preferences")
+    @app.get("/portal/preferences", response_model=PreferenceOut)
     def get_preferences(principal: str = Depends(get_principal)) -> dict:
         return {"preference": prefs.get(principal)}
 
-    @app.put("/portal/preferences")
+    @app.put("/portal/preferences", response_model=PreferenceOut)
     def set_preferences(body: PreferenceIn, principal: str = Depends(get_principal)) -> dict:
         prefs.set(principal, body.preference)  # self-service, applies to future notifications
         return {"preference": body.preference}
@@ -598,7 +638,7 @@ def create_app(
                      "reason": q.reason, "candidate_ticket": q.candidate_ticket}
                     for q in quarantine.all()]
 
-        @app.get("/tickets/{ticket_id}")
+        @app.get("/tickets/{ticket_id}", response_model=TicketDetailOut)
         def get_ticket(ticket_id: str, principal: str = Depends(get_principal)) -> dict:
             t = ticket_store.get(ticket_id)
             if t is None or not ticket_authority.can_read(principal, t):
@@ -606,7 +646,7 @@ def create_app(
             return {"id": t.id, "requester": _requester_for(t, principal), "status": t.status,
                     "community_visible": t.community_visible}
 
-        @app.post("/tickets")
+        @app.post("/tickets", response_model=TicketCreatedOut)
         def create_ticket(
             body: TicketCreateIn,
             principal: str = Depends(get_principal),
@@ -625,7 +665,7 @@ def create_app(
             return {"id": t.id, "requester": t.requester, "origin": t.origin,
                     "status": t.status, "community_visible": t.community_visible, "encrypted": t.encrypted}
 
-        @app.get("/tickets/{ticket_id}/comments")
+        @app.get("/tickets/{ticket_id}/comments", response_model=list[CommentOut])
         def get_comments(ticket_id: str, principal: str = Depends(get_principal)) -> list[dict]:
             t = ticket_store.get(ticket_id)
             if t is None or not ticket_authority.can_read(principal, t):
@@ -638,7 +678,20 @@ def create_app(
             # Gateway-mediated decryption (ADR-0008): bodies are ciphertext at rest.
             return service.read_comments(ticket_id)
 
-        @app.get("/community/search")
+        @app.post("/tickets/{ticket_id}/comments", response_model=CommentOut)
+        def reply_to_ticket(
+            ticket_id: str, body: CommentReplyIn, principal: str = Depends(get_principal)
+        ) -> dict:
+            # Portal/agent reply (#102). Participant-only (requester/watcher/assignee/agent),
+            # NOT a community-only viewer — same boundary as attachments (G11-02). The body
+            # is encrypted at rest if the ticket is encrypted (ADR-0005, handled in service).
+            _require_gitlab()  # INV-DEG-1: a Git-backed write
+            _attachment_ticket(ticket_id, principal)  # participant-or-404
+            _check_comment_size(body.body)  # G8-03
+            service.add_comment(ticket_id, principal, body.body, "web")
+            return {"author": principal, "body": body.body, "source": "web"}
+
+        @app.get("/community/search", response_model=list[CommunityHitOut])
         def community_search(q: str, principal: str = Depends(get_principal)) -> list[dict]:
             # Portal community KB: ONLY community_visible tickets (curated public
             # snapshot, INV-LC-2); a private/non-promoted ticket NEVER appears.
@@ -662,7 +715,7 @@ def create_app(
                 raise HTTPException(status_code=404)
             return t
 
-        @app.post("/tickets/{ticket_id}/attachments")
+        @app.post("/tickets/{ticket_id}/attachments", response_model=AttachmentOut)
         def add_attachment(ticket_id: str, body: AttachmentIn,
                            principal: str = Depends(get_principal)) -> dict:
             _attachment_ticket(ticket_id, principal)
@@ -675,7 +728,7 @@ def create_app(
             att = attachments.put(ticket_id, body.filename, raw)
             return {"filename": att.filename, "object_key": att.object_key}
 
-        @app.get("/tickets/{ticket_id}/attachments")
+        @app.get("/tickets/{ticket_id}/attachments", response_model=list[AttachmentOut])
         def list_attachments(ticket_id: str, principal: str = Depends(get_principal)) -> list[dict]:
             _attachment_ticket(ticket_id, principal)
             return [{"filename": a.filename, "object_key": a.object_key}

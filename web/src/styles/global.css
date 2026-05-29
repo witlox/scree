@@ -54,7 +54,8 @@ body {
   flex-wrap: wrap;
   gap: 0.25rem 0.75rem;
 }
-.app-shell__nav a {
+.app-shell__nav a,
+.app-shell__nav button {
   display: inline-flex;
   align-items: center;
   min-height: var(--tap-min);
@@ -62,8 +63,13 @@ body {
   color: var(--fg);
   text-decoration: none;
   border-radius: 6px;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
 }
-.app-shell__nav a[aria-current="page"] {
+.app-shell__nav a[aria-current="page"],
+.app-shell__nav button[aria-current="page"] {
   font-weight: 600;
   box-shadow: inset 0 -2px 0 var(--primary);
 }
