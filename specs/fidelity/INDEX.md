@@ -1,13 +1,49 @@
 # Fidelity Index
 
-Last checkpoint: 2026-05-29 (**REFRESH** — full-stack)
-Status: CHECKPOINT — baseline gaps largely resolved; frontend now measured (`frontend.md`)
-Scope: `api/` backend **+ `web/` frontend**. Suite now — **233 @api/unit passed**;
-`@contract` tier **7 files** runs nightly/on-demand; **web: 42 passed**.
+Last checkpoint: 2026-05-29 (**REFRESH 2** — canonical BDD + @e2e harness)
+Status: CHECKPOINT — baseline gaps largely resolved; the canonical features now
+execute; frontend measured (`frontend.md`) + a browser @e2e tier added.
+Scope: `api/` backend **+ `web/` frontend**. Suite now — **255 passed / 22 skipped /
+5 xfailed** (the 22 skips = nightly `@contract` modules + `@contract`/`@e2e` BDD
+scenarios routed to their tiers; the 5 xfails = honest Gateway gaps, below);
+`@contract` tier **7 files** nightly/on-demand; **web: 42 vitest + 6 @e2e** (Playwright).
 
 > The auditor measures; it does not fix. Gaps route to the implementer (see `gaps.md`).
 > Detail: Phase 1 depth → `coverage.md` · frontend → `frontend.md` · Phase 2 boundaries
 > → `boundaries.md` · Phase 3 enforcement → `enforcement.md` · Phase 4 + priorities → `gaps.md`.
+
+## Refresh checkpoint 2 (2026-05-29) — BDD now executes the canonical features
+
+The two BDD-structural gaps from the baseline headline (#2) and from REFRESH 1's
+"still open" list are **resolved**; the `@e2e` tier now exists.
+
+1. **The canonical `specs/features/*.feature` ARE the executed `@api` set** (G-D2,
+   G-A1). `pytest-bdd bdd_features_base_dir` → `specs/features`; the drifted
+   `api/tests/features/*.feature` copy is deleted. All **12** features are bound;
+   **39 `@api` scenarios pass**. `aggregation_permissions.feature` (INV-AGG) now runs
+   — including the metadata-leak-in-counts/titles and separate-sensitive-index
+   negatives — so **INV-AGG search-view + sensitive-partition filtering are ENFORCED**
+   (was UNENFORCED), backed by the #84 indexer.
+2. **BDD proves persistence** — the doc/risk fixtures run on `GitBackedDocStore` /
+   `GitBackedRiskStore` in tmp repos, so the gherkin exercises INV-ST-1/2, not an
+   in-memory stand-in.
+3. **5 scenarios are bound but `xfail`'d, honestly** (no green-by-omission): no Gateway
+   endpoint yet for risk **escalation**, risk **close-via-MR** (G-A6), ticket **merge**,
+   Slack **autocomplete**; and the **stale-cache fail-closed** scenario encodes the
+   documented INV-ACC-5 ↔ INV-DEG-1 tension (G-A2), which the TTL/last-known design
+   deliberately does not satisfy within the cache window.
+4. **`@e2e` browser tier added** (G-D1, partial). A dependency-free runner reads the
+   SAME canonical features and drives the real `CustomerPortal` island in Chromium
+   (host page + Playwright route mocks) across desktop + mobile; `portal.feature` @e2e
+   passes, `docs.feature` WYSIWYG is `fixme` (Tiptap byte-identical round-trip pending).
+   New `web-e2e` CI job. **Caveat:** the @e2e API/auth is route-mocked, so the
+   real-browser-vs-live-Keycloak/GitLab gate (the FE-01 class) still stands — see
+   `frontend.md`.
+
+**Tier routing:** `@api` runs in-process (this pass); `@contract` → testcontainers
+(nightly, `tests/contract`); `@e2e` → Playwright (`web/e2e`). A `pytest_bdd_apply_tag`
+hook skips `@contract`/`@e2e` BDD scenarios in the `@api` run while still collecting
+them for traceability.
 
 ## Refresh checkpoint (2026-05-29) — what changed since the baseline
 
@@ -27,13 +63,16 @@ The baseline's three structural gaps and most of the 24 findings are **resolved*
 5. **Frontend measured + adversary-hardened** — 42 web tests; Frontend Gate 1's 10
    findings (auth race FE-01, etc.) all resolved. See `frontend.md`.
 
-**Still open (none are substantive code gaps):** G-A3 (GitLab branch-protection — deploy
-config), G-A6/#83 (closed-risk-via-MR endpoint — now buildable on Git-backed risks, not
-yet built), G-A12 (`age` break-glass — v1 scope question), G-A13 (reference-render
-feature), G-A15 (commit trailer — blocked on ticket Git persistence), G-D1/#97 (Playwright
-e2e), G-D2/#98 (bind canonical features), and the standing **live browser+Keycloak+GitLab
-verification** (the top cross-cutting gate — what the mocked tests and nightly-only
-contract tier cannot prove).
+**Still open (none are substantive code gaps):** G-A3 (GitLab branch-protection — note
+app-repo `main` protection is now applied, but the *runtime-data* repos remain a deploy
+config), G-A6/#83 (closed-risk-via-MR endpoint — buildable on Git-backed risks, not yet
+built; the scenario is `xfail`'d), G-A12 (`age` break-glass — v1 scope question), G-A13
+(reference-render feature), G-A15 (commit trailer — blocked on ticket Git persistence),
+and the standing **live browser+Keycloak+GitLab verification** (the top cross-cutting gate
+— what the mocked tests, nightly-only contract tier, and route-mocked `@e2e` cannot prove).
+**Resolved in REFRESH 2:** G-D2/#98 (canonical features now bound), G-A1 (INV-AGG spec
+executed), and G-D1/#97 *partially* (Playwright `@e2e` harness runs in CI; live-auth pass
+still pending).
 
 — The sections below are the **baseline** measurement; the deltas above supersede them. —
 
@@ -42,7 +81,7 @@ contract tier cannot prove).
 The fast tiers (unit + `@api`) are **genuinely deep** — faithful in-process fakes, real Git, real JWT/Fernet crypto, real negative/exclusion assertions. The depth problem is not shallow assertions; it is **three structural gaps**:
 
 1. **The `@contract` tier never runs in CI** — 0 of 12 contract tests execute (`.github/workflows/ci.yml:21` installs no `testcontainers`). Every real-boundary fidelity check is dormant. Boundary drift is undetectable in the pipeline.
-2. **The canonical `specs/features/*.feature` set is not the executed BDD set.** Only 5 features are bound via `scenarios()` (from a *separate* `api/tests/features/*.feature` copy). 10 of the 12 canonical analyst features — including `aggregation_permissions.feature` (the load-bearing INV-AGG spec) — have **no executable binding**. Their behavior is mostly covered by integration tests, but the canonical scenarios are unexecuted prose.
+2. ~~**The canonical `specs/features/*.feature` set is not the executed BDD set.**~~ **[RESOLVED — REFRESH 2]** *(baseline finding, kept for provenance)* At baseline only 5 features were bound via `scenarios()` (a *separate* `api/tests/features/*.feature` copy); 10 of 12 canonical features — incl. `aggregation_permissions.feature` — were unexecuted prose. As of REFRESH 2 all 12 canonical features are the executed `@api` set and the copy is deleted (see the checkpoint at the top).
 3. **Risk + audit + token-exchange paths are in-memory / unvalidated against their real substrate.** `RiskStore` is a dict (`risk/store.py:5`), the audit sink is in-memory (not WORM/hash-chain), and `KeycloakTokenExchanger` ships real HTTP code with zero contract coverage.
 
 ## Summary — depth by context
@@ -84,7 +123,7 @@ Critical invariants (per `specs/invariants.md` severity guidance: INV-AGG, INV-A
 
 | Invariant | Statement (1-line) | Status |
 |---|---|---|
-| INV-AGG | Aggregation returns a subset of directly-readable; no metadata leak | **PARTIAL** — ENFORCED for planning/docs (true negatives); risk-register MODERATE; **search + separate-sensitive-index UNENFORCED** |
+| INV-AGG | Aggregation returns a subset of directly-readable; no metadata leak | **ENFORCED** (REFRESH 2) — planning/docs (true negatives) + risk-register no-leak + **search-view & separate-sensitive-index** now bound via `aggregation_permissions.feature` over the #84 indexer. Residual: the stale-cache fail-closed case is `xfail`'d as the documented INV-ACC-5↔INV-DEG-1 tension (G-A2) |
 | INV-ACC-1 | All access Gateway-mediated; no bypass | ENFORCED |
 | INV-ACC-2 | Authority = GitLab RBAC ∪ ticket ReBAC | ENFORCED (fakes); real GitLab union at dormant @contract |
 | INV-ACC-3 | Ticket readable only by participants / community | ENFORCED |
