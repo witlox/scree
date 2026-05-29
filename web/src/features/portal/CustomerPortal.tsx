@@ -18,7 +18,10 @@ export function CustomerPortal() {
   return (
     <div className="app-shell">
       <header className="app-shell__bar">
-        <span className="app-shell__brand">Scree Support</span>
+        <span className="app-shell__brand">
+          <img src="/logo.png" alt="" className="app-shell__logo" />
+          Scree Support
+        </span>
         <nav className="app-shell__nav" aria-label="Portal">
           <button type="button" aria-current={active === "tickets" ? "page" : undefined} onClick={() => setView({ tab: "tickets" })}>My tickets</button>
           <button type="button" aria-current={active === "help" ? "page" : undefined} onClick={() => setView({ tab: "help" })}>Community help</button>

@@ -46,7 +46,14 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .app-shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 700;
+}
+.app-shell__logo {
+  height: 1.5rem;
+  width: auto;
 }
 /* IA nav — inline on desktop, wraps on small screens (mobile-first) */
 .app-shell__nav {

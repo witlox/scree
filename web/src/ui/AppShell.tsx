@@ -28,7 +28,10 @@ export function AppShell({
   return (
     <div className="app-shell">
       <header className="app-shell__bar">
-        <span className="app-shell__brand">Scree</span>
+        <span className="app-shell__brand">
+          <img src="/logo.png" alt="" className="app-shell__logo" />
+          Scree
+        </span>
         <nav className="app-shell__nav" aria-label="Primary">
           {SECTIONS.map((s) => (
             <a key={s.key} href={s.href} aria-current={current === s.key ? "page" : undefined}>
