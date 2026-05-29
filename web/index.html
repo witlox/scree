@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- responsive: one codebase serves mobile and desktop -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scree</title>
+  </head>
+  <body>
+    <!-- React islands mount into [data-island] nodes; htmx-rendered pages embed
+         these the same way. Feature islands are registered in src/app/islands.ts. -->
+    <div id="root" data-island=""></div>
+    <script type="module" src="/src/app/main.tsx"></script>
+  </body>
+</html>
