@@ -429,7 +429,23 @@ def create_app(
         d = store.get(doc_id)
         if d is None or d.space not in _readable_spaces(principal, request):
             raise HTTPException(status_code=404)  # existence-leak-safe
-        return {"id": d.id, "title": d.title, "space": d.space, "body": d.body}
+        # path + rev + schema_version let an editor round-trip an edit safely
+        # (rebuild frontmatter; base_rev for optimistic concurrency, INV-ST-6). The
+        # in-memory store has no rev(); only the Git-backed store does.
+        rev = store.rev(d.path) if hasattr(store, "rev") and d.path else None
+        return {"id": d.id, "title": d.title, "space": d.space, "body": d.body,
+                "schema_version": d.schema_version, "path": d.path, "rev": rev,
+                "created": d.created, "updated": d.updated}
+
+    @app.get("/docs/{doc_id}/versions")
+    def get_doc_versions(doc_id: str, request: Request, principal: str = Depends(get_principal)) -> list[dict]:
+        d = store.get(doc_id)
+        if d is None or d.space not in _readable_spaces(principal, request):
+            raise HTTPException(status_code=404)  # existence-leak-safe
+        # Versions are Git commits (INV-ST-5). Only the Git-backed store has history.
+        if not hasattr(store, "history") or d.path is None:
+            return []
+        return store.history(d.path)
 
     if doc_writer is not None:
 

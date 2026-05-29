@@ -10,6 +10,9 @@ export type TokenProvider = () => string | null | Promise<string | null>;
 export interface ApiClientOptions {
   baseUrl?: string;
   getToken?: TokenProvider;
+  /** DEV ONLY: send X-Spike-User instead of a bearer (gateway dev header path).
+   *  Real deployments use getToken (OIDC). Deferred login flow tracked separately. */
+  devUser?: string;
 }
 
 export class ApiError extends Error {
@@ -31,10 +34,12 @@ export class ApiError extends Error {
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly getToken: TokenProvider;
+  private readonly devUser?: string;
 
   constructor(opts: ApiClientOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? "/api").replace(/\/+$/, "");
     this.getToken = opts.getToken ?? (() => null);
+    this.devUser = opts.devUser;
   }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -45,6 +50,7 @@ export class ApiClient {
     }
     const token = await this.getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
+    else if (this.devUser) headers.set("X-Spike-User", this.devUser);
 
     const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!resp.ok) {

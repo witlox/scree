@@ -34,6 +34,7 @@ class GitBackedDocStore:
                 title=meta["title"],
                 space=meta["space"],
                 body=meta["body"],
+                schema_version=meta["schema_version"],
                 created=created,
                 updated=updated,
                 path=str(md_path.relative_to(self._root)),  # folder path = hierarchy
@@ -73,6 +74,20 @@ class GitBackedDocStore:
             capture_output=True, text=True,
         ).stdout.strip()
         return out or None
+
+    def history(self, rel_path: str) -> list[dict]:
+        """Version history for a path from Git (INV-ST-5: versions are commits, not
+        independently authored state). Newest first."""
+        out = subprocess.run(
+            ["git", "-C", str(self._root), "log",
+             "--format=%H%x1f%an%x1f%aI%x1f%s", "--", rel_path],
+            capture_output=True, text=True,
+        ).stdout.strip()
+        versions: list[dict] = []
+        for line in out.splitlines():
+            sha, author, date, message = line.split("\x1f")
+            versions.append({"rev": sha, "author": author, "date": date, "message": message})
+        return versions
 
     def get(self, doc_id: str) -> Doc | None:
         return next((d for d in self._iter_docs() if d.id == doc_id), None)
