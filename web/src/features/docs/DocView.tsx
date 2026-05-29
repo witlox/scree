@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { docsApi, docsKeys } from "./api";
-import { Tiptap } from "./Tiptap";
+import { MarkdownView } from "./MarkdownView";
 import { VersionHistory } from "./VersionHistory";
 
 export function DocView({
@@ -40,8 +40,8 @@ export function DocView({
         </button>
       </div>
       <p className="doc-meta">{data.space}{data.updated ? ` · updated ${new Date(data.updated).toLocaleString()}` : ""}</p>
-      {/* read-only render; key remounts the editor when switching docs */}
-      <Tiptap key={docId} markdown={data.body} editable={false} />
+      {/* lightweight read render (no TipTap on the read path) */}
+      <MarkdownView markdown={data.body} />
       {showHistory && <VersionHistory docId={docId} />}
     </article>
   );

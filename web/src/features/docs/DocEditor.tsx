@@ -1,10 +1,12 @@
-import type { Editor } from "@tiptap/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 
-import { getMarkdown } from "../../editor/markdown";
 import { buildDocContent, classifyWriteError, docsApi, docsKeys, type DocDetail } from "./api";
-import { Tiptap } from "./Tiptap";
+import type { TiptapApi } from "./Tiptap";
+
+// Code-split: TipTap/ProseMirror loads only when the editor is open (a separate
+// chunk), keeping it out of the initial bundle and the reader path.
+const Tiptap = lazy(() => import("./Tiptap").then((m) => ({ default: m.Tiptap })));
 
 interface Draft {
   id: string;
@@ -83,7 +85,7 @@ function DocEditorForm({
   onCancel: () => void;
 }) {
   const qc = useQueryClient();
-  const editorRef = useRef<Editor | null>(null);
+  const editorApi = useRef<TiptapApi | null>(null);
   const [title, setTitle] = useState(initial.title);
   const [id, setId] = useState(initial.id);
   const [path, setPath] = useState(initial.path);
@@ -91,7 +93,7 @@ function DocEditorForm({
 
   const save = useMutation({
     mutationFn: () => {
-      const body = editorRef.current ? getMarkdown(editorRef.current) : initial.body;
+      const body = editorApi.current ? editorApi.current.getMarkdown() : initial.body;
       const content = buildDocContent({ id, schema_version: initial.schema_version, title, space: docSpace, body });
       return docsApi.write({ path, content, base_rev: isNew ? null : initial.rev });
     },
@@ -146,7 +148,9 @@ function DocEditorForm({
         <p className="doc-meta">{docSpace} · {path}</p>
       )}
 
-      <Tiptap markdown={initial.body} editable onReady={(ed) => (editorRef.current = ed)} />
+      <Suspense fallback={<p role="status">Loading editor…</p>}>
+        <Tiptap markdown={initial.body} onReady={(apiHandle) => (editorApi.current = apiHandle)} />
+      </Suspense>
 
       {failure && <p role="alert" className="doc-error">{FAILURE_MESSAGE[failure]}</p>}
     </form>

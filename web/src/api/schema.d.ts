@@ -474,6 +474,58 @@ export interface components {
             /** Base Rev */
             base_rev?: string | null;
         };
+        /** DocDetailOut */
+        DocDetailOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Space */
+            space: string;
+            /** Body */
+            body: string;
+            /** Schema Version */
+            schema_version: number;
+            /** Path */
+            path: string | null;
+            /** Rev */
+            rev: string | null;
+            /** Created */
+            created: string | null;
+            /** Updated */
+            updated: string | null;
+        };
+        /** DocSummaryOut */
+        DocSummaryOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Space */
+            space: string;
+        };
+        /** DocVersionOut */
+        DocVersionOut: {
+            /** Rev */
+            rev: string;
+            /** Author */
+            author: string;
+            /** Date */
+            date: string;
+            /** Message */
+            message: string;
+        };
+        /** DocWriteOut */
+        DocWriteOut: {
+            /** Id */
+            id: string;
+            /** Path */
+            path: string;
+            /** Space */
+            space: string;
+            /** Rev */
+            rev: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -940,9 +992,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["DocSummaryOut"][];
                 };
             };
             /** @description Validation Error */
@@ -978,9 +1028,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DocWriteOut"];
                 };
             };
             /** @description Validation Error */
@@ -1014,9 +1062,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["DocDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -1050,9 +1096,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["DocVersionOut"][];
                 };
             };
             /** @description Validation Error */

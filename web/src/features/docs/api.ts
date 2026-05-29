@@ -1,37 +1,12 @@
+import type { components } from "../../api/schema";
 import { api, ApiError } from "../../api";
 
-// The gateway returns plain dicts (no response_model), so the generated OpenAPI
-// types for these endpoints are untyped. These domain interfaces mirror the backend
-// shapes; replace them with generated types once the gateway adds response_models
-// (tracked separately). Anchored to specs/ubiquitous-language.md.
-export interface DocSummary {
-  id: string;
-  title: string;
-  space: string;
-}
-
-export interface DocDetail extends DocSummary {
-  body: string;
-  schema_version: number;
-  path: string | null;
-  rev: string | null;
-  created: string | null;
-  updated: string | null;
-}
-
-export interface DocVersion {
-  rev: string;
-  author: string;
-  date: string;
-  message: string;
-}
-
-export interface WriteResult {
-  id: string;
-  path: string;
-  space: string;
-  rev: string;
-}
+// Types are GENERATED from the gateway OpenAPI schema (response_model on the routes),
+// never hand-written. See .claude/coding/typescript.md.
+export type DocSummary = components["schemas"]["DocSummaryOut"];
+export type DocDetail = components["schemas"]["DocDetailOut"];
+export type DocVersion = components["schemas"]["DocVersionOut"];
+export type WriteResult = components["schemas"]["DocWriteOut"];
 
 export const docsApi = {
   list: () => api.get<DocSummary[]>("/docs"),
