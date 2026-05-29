@@ -86,4 +86,5 @@ def test_agent_and_requester_see_requester():
 def test_community_viewer_listing_redacts_requester():
     client = _ticket_client()
     rows = client.get("/tickets", headers={"X-Spike-User": "stranger"}).json()
-    assert rows == [{"id": "ticket-1", "requester": None}]
+    assert [r["id"] for r in rows] == ["ticket-1"]
+    assert rows[0]["requester"] is None  # community-only viewer never sees the requester (G2-06)

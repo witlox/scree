@@ -534,9 +534,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Orphans Orphans Get"
+                  "$ref": "#/components/schemas/OrphanReportOut"
                 }
               }
             }
@@ -967,8 +965,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/TicketSummaryOut"
                   },
                   "title": "Response List Tickets Tickets Get"
                 }
@@ -1106,8 +1103,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/QuarantineItemOut"
                   },
                   "title": "Response List Quarantine Tickets Quarantine Get"
                 }
@@ -2004,8 +2000,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/ErasureReceiptOut"
                   },
                   "title": "Response List Erasures Identities Erasures Get"
                 }
@@ -2487,6 +2482,44 @@
         ],
         "title": "EpicOut"
       },
+      "ErasureReceiptOut": {
+        "properties": {
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "identity_removed": {
+            "type": "boolean",
+            "title": "Identity Removed"
+          },
+          "relations_purged": {
+            "type": "integer",
+            "title": "Relations Purged"
+          },
+          "quarantine_purged": {
+            "type": "integer",
+            "title": "Quarantine Purged"
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject",
+          "actor",
+          "at",
+          "identity_removed",
+          "relations_purged",
+          "quarantine_purged"
+        ],
+        "title": "ErasureReceiptOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2515,6 +2548,53 @@
           "items"
         ],
         "title": "MigrationRunIn"
+      },
+      "OrphanReportOut": {
+        "properties": {
+          "resources": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Resources"
+          },
+          "tickets": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Tickets"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "computed": {
+            "type": "boolean",
+            "title": "Computed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resources",
+          "tickets",
+          "as_of",
+          "computed"
+        ],
+        "title": "OrphanReportOut"
       },
       "PortfolioOut": {
         "properties": {
@@ -2583,6 +2663,48 @@
           "preference"
         ],
         "title": "PreferenceIn"
+      },
+      "QuarantineItemOut": {
+        "properties": {
+          "claimed_from": {
+            "type": "string",
+            "title": "Claimed From"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "candidate_ticket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Ticket"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claimed_from",
+          "subject",
+          "reason",
+          "candidate_ticket"
+        ],
+        "title": "QuarantineItemOut"
       },
       "RiskAssessIn": {
         "properties": {
@@ -2816,6 +2938,70 @@
           "origin"
         ],
         "title": "TicketCreateIn"
+      },
+      "TicketSummaryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requester"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "assignee": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "community_visible": {
+            "type": "boolean",
+            "title": "Community Visible"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "requester",
+          "status",
+          "assignee",
+          "origin",
+          "created_at",
+          "community_visible"
+        ],
+        "title": "TicketSummaryOut"
       },
       "TicketTransitionIn": {
         "properties": {
