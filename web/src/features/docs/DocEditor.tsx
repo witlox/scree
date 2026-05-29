@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { lazy, Suspense, useRef, useState } from "react";
 
+import { Button } from "../../ui/Button";
+import { TextField } from "../../ui/TextField";
 import { buildDocContent, classifyWriteError, docsApi, docsKeys, type DocDetail } from "./api";
 import type { TiptapApi } from "./Tiptap";
 
@@ -117,32 +119,20 @@ function DocEditorForm({
       }}
     >
       <div className="doc-toolbar">
-        <button type="button" onClick={onCancel}>Cancel</button>
+        <Button onClick={onCancel}>Cancel</Button>
         <h2>{isNew ? "New doc" : `Editing ${initial.title}`}</h2>
-        <button type="submit" disabled={!canSave || save.isPending}>
+        <Button variant="primary" type="submit" disabled={!canSave || save.isPending}>
           {save.isPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </div>
 
-      <label className="doc-field">
-        <span>Title</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} required />
-      </label>
+      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
 
       {isNew ? (
         <>
-          <label className="doc-field">
-            <span>Id</span>
-            <input value={id} onChange={(e) => setId(e.target.value)} required />
-          </label>
-          <label className="doc-field">
-            <span>Space</span>
-            <input value={docSpace} onChange={(e) => setDocSpace(e.target.value)} required />
-          </label>
-          <label className="doc-field">
-            <span>Path</span>
-            <input value={path} onChange={(e) => setPath(e.target.value)} placeholder="docs/page.md" required />
-          </label>
+          <TextField label="Id" value={id} onChange={(e) => setId(e.target.value)} required />
+          <TextField label="Space" value={docSpace} onChange={(e) => setDocSpace(e.target.value)} required />
+          <TextField label="Path" value={path} onChange={(e) => setPath(e.target.value)} placeholder="docs/page.md" required />
         </>
       ) : (
         <p className="doc-meta">{docSpace} · {path}</p>
