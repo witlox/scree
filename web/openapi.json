@@ -325,9 +325,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Preferences Portal Preferences Get"
+                  "$ref": "#/components/schemas/PreferenceOut"
                 }
               }
             }
@@ -397,9 +395,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Set Preferences Portal Preferences Put"
+                  "$ref": "#/components/schemas/PreferenceOut"
                 }
               }
             }
@@ -1037,9 +1033,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Create Ticket Tickets Post"
+                  "$ref": "#/components/schemas/TicketCreatedOut"
                 }
               }
             }
@@ -1176,9 +1170,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Ticket Tickets  Ticket Id  Get"
+                  "$ref": "#/components/schemas/TicketDetailOut"
                 }
               }
             }
@@ -1332,10 +1324,88 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/CommentOut"
                   },
                   "title": "Response Get Comments Tickets  Ticket Id  Comments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Reply To Ticket",
+        "operationId": "reply_to_ticket_tickets__ticket_id__comments_post",
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Ticket Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "x-spike-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Spike-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentReplyIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentOut"
                 }
               }
             }
@@ -1408,8 +1478,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/CommunityHitOut"
                   },
                   "title": "Response Community Search Community Search Get"
                 }
@@ -1492,9 +1561,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Add Attachment Tickets  Ticket Id  Attachments Post"
+                  "$ref": "#/components/schemas/AttachmentOut"
                 }
               }
             }
@@ -1565,8 +1632,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/AttachmentOut"
                   },
                   "title": "Response List Attachments Tickets  Ticket Id  Attachments Get"
                 }
@@ -2188,6 +2254,24 @@
         ],
         "title": "AttachmentIn"
       },
+      "AttachmentOut": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "object_key": {
+            "type": "string",
+            "title": "Object Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "object_key"
+        ],
+        "title": "AttachmentOut"
+      },
       "Body_inbound_email_tickets_inbound_email_post": {
         "properties": {
           "raw": {
@@ -2291,6 +2375,55 @@
           "content"
         ],
         "title": "Body_write_doc_docs_post"
+      },
+      "CommentOut": {
+        "properties": {
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "author",
+          "body",
+          "source"
+        ],
+        "title": "CommentOut"
+      },
+      "CommentReplyIn": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "CommentReplyIn"
+      },
+      "CommunityHitOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "CommunityHitOut"
       },
       "DocDetailOut": {
         "properties": {
@@ -2664,6 +2797,26 @@
         ],
         "title": "PreferenceIn"
       },
+      "PreferenceOut": {
+        "properties": {
+          "preference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preference"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preference"
+        ],
+        "title": "PreferenceOut"
+      },
       "QuarantineItemOut": {
         "properties": {
           "claimed_from": {
@@ -2938,6 +3091,79 @@
           "origin"
         ],
         "title": "TicketCreateIn"
+      },
+      "TicketCreatedOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "requester": {
+            "type": "string",
+            "title": "Requester"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "community_visible": {
+            "type": "boolean",
+            "title": "Community Visible"
+          },
+          "encrypted": {
+            "type": "boolean",
+            "title": "Encrypted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "requester",
+          "origin",
+          "status",
+          "community_visible",
+          "encrypted"
+        ],
+        "title": "TicketCreatedOut"
+      },
+      "TicketDetailOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requester"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "community_visible": {
+            "type": "boolean",
+            "title": "Community Visible"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "requester",
+          "status",
+          "community_visible"
+        ],
+        "title": "TicketDetailOut"
       },
       "TicketSummaryOut": {
         "properties": {

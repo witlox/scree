@@ -240,7 +240,8 @@ export interface paths {
         /** Get Comments */
         get: operations["get_comments_tickets__ticket_id__comments_get"];
         put?: never;
-        post?: never;
+        /** Reply To Ticket */
+        post: operations["reply_to_ticket_tickets__ticket_id__comments_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -429,6 +430,13 @@ export interface components {
             /** Content */
             content: string;
         };
+        /** AttachmentOut */
+        AttachmentOut: {
+            /** Filename */
+            filename: string;
+            /** Object Key */
+            object_key: string;
+        };
         /** Body_inbound_email_tickets_inbound_email_post */
         Body_inbound_email_tickets_inbound_email_post: {
             /** Raw */
@@ -473,6 +481,25 @@ export interface components {
             content: string;
             /** Base Rev */
             base_rev?: string | null;
+        };
+        /** CommentOut */
+        CommentOut: {
+            /** Author */
+            author: string;
+            /** Body */
+            body: string;
+            /** Source */
+            source: string;
+        };
+        /** CommentReplyIn */
+        CommentReplyIn: {
+            /** Body */
+            body: string;
+        };
+        /** CommunityHitOut */
+        CommunityHitOut: {
+            /** Id */
+            id: string;
         };
         /** DocDetailOut */
         DocDetailOut: {
@@ -595,6 +622,11 @@ export interface components {
             /** Preference */
             preference: string;
         };
+        /** PreferenceOut */
+        PreferenceOut: {
+            /** Preference */
+            preference: string | null;
+        };
         /** QuarantineItemOut */
         QuarantineItemOut: {
             /** Claimed From */
@@ -705,6 +737,32 @@ export interface components {
             encrypt: boolean;
             /** Body */
             body?: string | null;
+        };
+        /** TicketCreatedOut */
+        TicketCreatedOut: {
+            /** Id */
+            id: string;
+            /** Requester */
+            requester: string;
+            /** Origin */
+            origin: string;
+            /** Status */
+            status: string;
+            /** Community Visible */
+            community_visible: boolean;
+            /** Encrypted */
+            encrypted: boolean;
+        };
+        /** TicketDetailOut */
+        TicketDetailOut: {
+            /** Id */
+            id: string;
+            /** Requester */
+            requester: string | null;
+            /** Status */
+            status: string;
+            /** Community Visible */
+            community_visible: boolean;
         };
         /** TicketSummaryOut */
         TicketSummaryOut: {
@@ -910,9 +968,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PreferenceOut"];
                 };
             };
             /** @description Validation Error */
@@ -948,9 +1004,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PreferenceOut"];
                 };
             };
             /** @description Validation Error */
@@ -1257,9 +1311,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TicketCreatedOut"];
                 };
             };
             /** @description Validation Error */
@@ -1325,9 +1377,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TicketDetailOut"];
                 };
             };
             /** @description Validation Error */
@@ -1401,9 +1451,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["CommentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reply_to_ticket_tickets__ticket_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+                "x-spike-user"?: string | null;
+            };
+            path: {
+                ticket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentReplyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentOut"];
                 };
             };
             /** @description Validation Error */
@@ -1437,9 +1523,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["CommunityHitOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1473,9 +1557,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["AttachmentOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1513,9 +1595,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["AttachmentOut"];
                 };
             };
             /** @description Validation Error */
