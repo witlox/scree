@@ -43,10 +43,10 @@ jobs:
   contract-tests:
     name: contract-tests
     # G-B1: the @contract tier boots real services (Keycloak/OpenFGA/Vault) via
-    # testcontainers to catch stub-vs-real drift. Docker-heavy, so it runs nightly
-    # and on-demand rather than blocking every PR. GitLab @contract tests still skip
-    # unless GITLAB_TEST_URL/GITLAB_TEST_TOKEN are provided.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # testcontainers to catch stub-vs-real drift — including the canonical @contract
+    # gherkin (e.g. crypto-shred against a real Vault). Runs on every PR/push (GitHub
+    # runners have Docker); the schedule keeps a nightly heartbeat. GitLab @contract
+    # tests still skip unless GITLAB_TEST_URL/GITLAB_TEST_TOKEN are provided.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
