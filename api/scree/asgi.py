@@ -10,6 +10,7 @@ uses the dev header-auth path and in-memory stores (no external services needed)
 Run: `uvicorn scree.asgi:app`. Config: see .env.example / docker-compose.yml.
 """
 
+import datetime as dt
 import os
 
 from fastapi import FastAPI
@@ -27,13 +28,19 @@ from scree.crypto.transit import FernetCrypto, VaultTransitCrypto
 from scree.gateway.app import create_app
 from scree.knowledge.doc_service import DocService
 from scree.knowledge.git_store import GitBackedDocStore
+from scree.knowledge.models import Doc
 from scree.knowledge.store import DocStore
+from scree.planning.authority import PlanningAuthority
+from scree.planning.index import PlanningIndex
+from scree.planning.models import Epic
 from scree.portal.stores import AttachmentStore, FileAttachmentStore
 from scree.risk.git_store import GitBackedRiskStore
+from scree.risk.models import Risk
 from scree.risk.store import RiskStore
 from scree.servicedesk.comments import CommentStore
 from scree.servicedesk.git_comments import GitBackedCommentStore
 from scree.servicedesk.git_store import GitBackedTicketStore
+from scree.servicedesk.models import Ticket
 from scree.servicedesk.store import TicketStore
 
 
@@ -46,6 +53,51 @@ def _require(name: str) -> str:
     if not value:
         raise RuntimeError(f"{name} is required in production (set SCREE_DEV=1 for a dev run)")
     return value
+
+
+def _seed_demo(common: dict, agents_env: set[str]) -> tuple:
+    """Populate the in-memory stores so every surface shows content in SCREE_DEV mode.
+    Default actor `rivera` is a member + agent (sees docs/risk/portfolio/admin + the
+    full ticket queue); `ext-okafor` is a customer who owns two tickets (the portal
+    view). Returns the demo (authority, doc_store, ticket_authority, planning_index,
+    planning_authority)."""
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    HB, RP, DESK = "platform/handbook", "org/risk-portfolio", "support/service-desk"
+    authority = Authority({"rivera": {HB, RP, DESK}, "agent:dani": {HB, DESK}})
+    docs = DocStore([
+        Doc("doc-onboarding", "Platform Onboarding", HB, "# Welcome\n\nGetting started on the platform.\n"),
+        Doc("doc-runbook", "Incident Runbook", HB, "## When paged\n\n1. Acknowledge.\n2. Triage.\n3. Mitigate.\n"),
+        Doc("doc-risk-policy", "Risk Management Policy", RP, "Risks are scored 5x5 with a ROAM strategy.\n"),
+    ])
+    for r in (
+        Risk("risk-2026-001", "Vendor lock-in", RP, "strategic", 4, 4, "mitigated", owner="rivera"),
+        Risk("risk-2026-014", "Migration slip", HB, "delivery", 3, 4, "owned", owner="rivera"),
+        Risk("risk-2026-022", "Credential exposure", RP, "security", 2, 5, "mitigated", owner="agent:dani"),
+    ):
+        common["risk_store"].put(r)
+
+    agents = {"rivera", "agent:dani"} | agents_env
+    fga = FakeOpenFga()
+    ticket_authority = TicketAuthority(fga, agents=agents)
+    for t in (
+        Ticket("ticket-2026-000123", requester="ext-okafor", space=DESK, status="open",
+               assignee="agent:dani", origin="web", created_at=now),
+        Ticket("ticket-2026-000200", requester="ext-lind", space=DESK, status="resolved", origin="email",
+               created_at=now, community_visible=True,
+               community_snapshot=(("agent:dani", "To reset your API key, open Portal → Settings.", "web"),)),
+        Ticket("ticket-2026-000211", requester="ext-okafor", space=DESK, status="open", origin="slack", created_at=now),
+    ):
+        common["ticket_store"].put(t)
+        fga.write(t.requester, "requester", t.id)  # so the customer sees their own tickets
+
+    epics = [
+        Epic("EPIC-100", "group/platform", "Platform v2", 21),
+        Epic("EPIC-200", "group/portfolio", "Customer Portal GA", 13),
+        Epic("EPIC-300", "group/secret", "Confidential initiative", 8),  # rivera not in group → hidden (INV-AGG)
+    ]
+    planning_index = PlanningIndex(epics, last_indexed=now)
+    planning_authority = PlanningAuthority({"rivera": {"group/platform", "group/portfolio"}})
+    return authority, docs, ticket_authority, planning_index, planning_authority
 
 
 def build_app() -> FastAPI:
@@ -76,11 +128,19 @@ def build_app() -> FastAPI:
     agents = _csv("SCREE_AGENT_PRINCIPALS")
 
     if dev:
+        # Seed a populated demo unless the dev run points at real stores.
+        if not (docs_repo or risks_repo or tickets_repo):
+            authority, doc_store, ticket_authority, planning_index, planning_authority = _seed_demo(common, agents)
+        else:
+            authority = Authority({})
+            ticket_authority = TicketAuthority(FakeOpenFga(), agents=agents)
+            planning_index = planning_authority = None
         api = create_app(
-            doc_store, Authority({}),
-            ticket_authority=TicketAuthority(FakeOpenFga(), agents=agents),
+            doc_store, authority,
+            ticket_authority=ticket_authority,
             ticket_crypto=FernetCrypto(),
             token_exchanger=StaticTokenExchanger(),
+            planning_index=planning_index, planning_authority=planning_authority,
             allow_insecure_header_auth=True,
             **common,
         )

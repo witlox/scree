@@ -7,9 +7,37 @@
     <title>Scree</title>
   </head>
   <body>
-    <!-- React islands mount into [data-island] nodes; htmx-rendered pages embed
-         these the same way. Feature islands are registered in src/app/islands.ts. -->
+    <!-- React islands mount into [data-island] nodes; in a real deployment the
+         htmx/GitLab pages embed them. This bare entry doubles as a DEMO LAUNCHER:
+         `/?island=portal&as=<user>` mounts one surface; `/` (no island) shows a menu.
+         Feature islands are registered in src/app/islands.tsx. -->
     <div id="root" data-island=""></div>
+    <script>
+      (function () {
+        var p = new URLSearchParams(location.search);
+        var island = p.get("island");
+        var root = document.getElementById("root");
+        if (island) {
+          root.setAttribute("data-island", island);
+          if (p.get("props")) root.setAttribute("data-props", p.get("props"));
+        } else {
+          var as = p.get("as") || "rivera";
+          var link = function (i, label) {
+            return '<li><a href="?island=' + i + '&as=' + encodeURIComponent(as) + '">' + label + "</a></li>";
+          };
+          root.innerHTML =
+            '<main style="font-family:system-ui;max-width:42rem;margin:3rem auto;padding:0 1rem">' +
+            "<h1>Scree — demo</h1>" +
+            "<p>Pick a surface to mount (dev mode, in-memory data, acting as <strong>" + as + "</strong>; " +
+            'add <code>?as=&lt;user&gt;</code> to switch):</p><ul>' +
+            link("portal", "Customer Portal") +
+            link("docs", "Knowledge") +
+            link("portfolio", "Portfolio &amp; Risk") +
+            link("admin", "Agent / Admin Console") +
+            "</ul></main>";
+        }
+      })();
+    </script>
     <script type="module" src="/src/app/main.tsx"></script>
   </body>
 </html>
