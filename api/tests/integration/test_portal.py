@@ -18,9 +18,11 @@ CUST = "ext-okafor"
 
 
 def _ctx():
-    # Two resolved tickets: one community_visible, one not.
+    # Two resolved tickets: one community_visible, one not. A promoted ticket carries
+    # the curated snapshot the public KB indexes (INV-LC-2).
     store = TicketStore([
-        Ticket(id="ticket-pub", requester=CUST, status="resolved", community_visible=True),
+        Ticket(id="ticket-pub", requester=CUST, status="resolved", community_visible=True,
+               community_snapshot=(("agent:dani", "how to reset your API key", "api"),)),
         Ticket(id="ticket-priv", requester="ext-other", status="resolved", community_visible=False),
     ])
     comments = CommentStore()

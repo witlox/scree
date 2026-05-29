@@ -20,9 +20,12 @@ class GitLabAuthority:
     GitLab returns 404 (not 403) for unauthorized private projects — matching our
     existence-leak-safe contract (error-taxonomy: NotFoundOrUnauthorized)."""
 
-    def __init__(self, base_url: str, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self, base_url: str, client: httpx.Client | None = None, *, per_page: int = 100
+    ) -> None:
         self._base = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=10)
+        self._per_page = per_page  # tunable; the @contract tier sets it low to exercise paging
 
     def can_read(self, token: str, project: str) -> bool:
         resp = self._client.get(
@@ -38,7 +41,7 @@ class GitLabAuthority:
             resp = self._client.get(
                 f"{self._base}{path}",
                 headers={"PRIVATE-TOKEN": token},
-                params={"membership": "true", "simple": "true", "per_page": 100, "page": page},
+                params={"membership": "true", "simple": "true", "per_page": self._per_page, "page": page},
             )
             resp.raise_for_status()
             rows = resp.json()

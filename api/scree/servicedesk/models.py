@@ -22,3 +22,7 @@ class Ticket:
     captured_by: str | None = None  # Slack capturer, recorded separately (INV-SLACK-1)
     created_at: str | None = None  # ISO-8601; for unassigned-age orphan check (INV-ORPH-2)
     encrypted: bool = False  # create-time decision; body encrypted at rest (ADR-0005)
+    # INV-LC-2: a frozen curated snapshot captured at promote time. Community-only
+    # viewers see THIS, never the live thread, so later private replies/attachments
+    # do not leak. Cleared on reopen (re-gates to private). Tuple of (author, body, source).
+    community_snapshot: tuple[tuple[str, str, str], ...] | None = None

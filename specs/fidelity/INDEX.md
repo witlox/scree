@@ -1,7 +1,7 @@
 # Fidelity Index
 
 Last checkpoint: 2026-05-29
-Status: CHECKPOINT (baseline)
+Status: CHECKPOINT (baseline) — 14 of 24 gaps fixed in `fix/auditor-findings`; 10 flagged (see `gaps.md` Resolution)
 Scope: `api/` backend. Suite at audit time — **187 passed** (non-contract), **11 passed / 1 skipped** (contract, local Docker only). Web (`web/`, vitest) not audited here.
 
 > The auditor measures; it does not fix. Gaps route to the implementer (see `gaps.md`).
@@ -58,8 +58,8 @@ Critical invariants (per `specs/invariants.md` severity guidance: INV-AGG, INV-A
 | INV-ACC-1 | All access Gateway-mediated; no bypass | ENFORCED |
 | INV-ACC-2 | Authority = GitLab RBAC ∪ ticket ReBAC | ENFORCED (fakes); real GitLab union at dormant @contract |
 | INV-ACC-3 | Ticket readable only by participants / community | ENFORCED |
-| INV-ACC-4 | Org tag grants no access | **UNENFORCED** (no test) |
-| INV-ACC-5 | Stale permission cache fails closed | **UNENFORCED + tension** with INV-DEG-1 (see gaps G-A2) |
+| INV-ACC-4 | Org tag grants no access | **ENFORCED** (G-A14: `test_org_tag_access.py`) |
+| INV-ACC-5 | Stale permission cache fails closed | **ENFORCED (bounded)** — G-A2: last-known bounded by `LAST_KNOWN_MAX_AGE`, fails closed past it; tension with INV-DEG-1 documented |
 | INV-ID-1 | GitLab actions carry the human via token exchange | ENFORCED at unit/@api; real exchange **DIVERGENT** (no @contract) |
 | INV-ID-2 | Unmappable Slack action refused | ENFORCED |
 | INV-ID-3 | Every action audited to integrity-protected sink | **PARTIAL** — writes/5xx audited; reads+agg not; sink in-memory (no WORM/hash-chain) |

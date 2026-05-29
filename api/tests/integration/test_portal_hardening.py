@@ -43,7 +43,8 @@ def test_encrypted_ticket_cannot_be_promoted_to_community():
 def test_community_search_skips_encrypted_community_tickets():
     # Defense in depth: even a (hypothetical) encrypted+community ticket is excluded.
     enc = Ticket(id="t-enc", requester=CUST, status="resolved", community_visible=True, encrypted=True)
-    plain = Ticket(id="t-plain", requester=CUST, status="resolved", community_visible=True)
+    plain = Ticket(id="t-plain", requester=CUST, status="resolved", community_visible=True,
+                   community_snapshot=(("agent:dani", "reset secret token here", "api"),))
     client, _ = _ctx(
         tickets=[enc, plain],
         comments=[TicketComment(ticket_id="t-plain", author="agent:dani", body="reset secret token here")],

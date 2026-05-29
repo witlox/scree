@@ -70,3 +70,40 @@ INV-EMAIL-1 attribution rests on a trusted verdict that is *assumed* (injected p
 - **Orphan / dead specs:** `aggregation_permissions`, `data_protection`, `degradation`, `docs`, `migration`, `orphan_detection`, `portal`, `risk_register`, `slack_capture`, `ticket_origins` `.feature` files have no step bindings.
 - **Over-stubs (acceptable but bounding depth):** in-memory `RiskStore`, in-memory audit sink, bool-only webhook "firing".
 - **What's genuinely strong** (do not regress): real-`git` doc/Git path, OIDC negative matrix, email verification negatives, erasure completeness, migration idempotency, planning INV-AGG existence-hiding, degradation read-survives/write-refused.
+
+---
+
+## Resolution (2026-05-29, fix/auditor-findings)
+
+Per project policy (fix all findings; severity sets order, not whether) the
+backend-tractable gaps were fixed; the rest are flagged with a concrete blocker
+(issue stays open). Suite after fixes: **201 @api/unit passed** (+14); the
+`@contract` tier collects (+3) and now has a nightly CI job.
+
+**Fixed (14):**
+- **G-A2** — last-known membership bounded by `LAST_KNOWN_MAX_AGE`; past the bound the resolver fails closed (INV-ACC-5). `test_membership_staleness.py`. INV-ACC-5↔INV-DEG-1 tension documented in code.
+- **G-A4** — `promote_community_visible` freezes a curated snapshot; community-only viewers + the public KB read the snapshot, not the live thread; reopen discards it. `test_community_snapshot.py`. **INV-LC-2 now ENFORCED.**
+- **G-A8** — id-immutability guard on doc update (`IdChanged`→409). `test_doc_st_invariants.py`. **INV-ST-4 ENFORCED.**
+- **G-A9** — created/updated projection + `updated` advances on edit (controlled-date Git). **INV-ST-5 ENFORCED.**
+- **G-A10** — stale write surfaced as Conflict, prior content preserved (never silently merged). **INV-ST-6 surfacing ENFORCED.**
+- **G-A11** — encrypted ticket body never enters the public KB index. `test_enc_metadata_only.py`. **INV-ENC-3 ENFORCED.**
+- **G-A14** — same-org customer cannot read another's ticket. `test_org_tag_access.py`. **INV-ACC-4 ENFORCED.**
+- **G-A16** — outage write-refusal now asserts no comment/ticket created (not just 503). `test_degradation_state.py`.
+- **G-A17** — orphan refresh flags but leaves owner/assignee unchanged. `test_orphan_no_reassign.py`.
+- **G-A5** — migrated requester can read their ticket (OpenFGA tuple populated). `test_migration_authority.py`. (Mid-failure *atomicity* still relies on idempotent re-run repair — documented.)
+- **G-A1** *(partial)* — risk-register no-metadata-leak test added (`test_risk_aggregation_leak.py`). **Search-view filtering + binding `aggregation_permissions.feature` remain open** (no search endpoint yet) → tracked under G-D2.
+- **G-B1** — nightly + on-demand `contract-tests` CI job runs `pytest -m contract` with `testcontainers` (`.github/workflows/ci.yml`).
+- **G-B2** — `test_keycloak_token_exchange.py` (RFC 8693 against real Keycloak, skip-on-unsupported-config).
+- **G-B3** — `test_gitlab_pagination.py` exercises `readable_spaces` across an `x-next-page` boundary (`per_page` made configurable).
+
+**Flagged — open, with blocker:**
+- **G-C1** — risk + audit on Git / WORM sink: architecture (RiskStore is a dict; audit sink in-memory). Needs a Git-backed risk store + tamper-evident sink.
+- **G-A6** — closed-risk-via-MR: blocked on G-C1 (risks not on Git).
+- **G-A15** — external-write desk-SA commit trailer: blocked on ticket Git persistence.
+- **G-A3** — INV-GOV-1: real enforcement is GitLab branch protection + CODEOWNERS on the *runtime data repos*, not this build repo; a CODEOWNERS here would enforce nothing. Deploy concern + a CODEOWNERS template is the right artifact.
+- **G-A7** — INV-IX-2/4 batch backstop + separate sensitive index: needs a real indexer (webhook is a bool today).
+- **G-A13** — INV-REF render layer (unavailable / opaque target_id): needs a reference-resolution feature.
+- **G-B4** — O365/Graph DKIM/DMARC verdict seam: no real twin exists; needs a Graph poller integration.
+- **G-A12** — ADR-0008 client-side `age` break-glass: v1 scope question (ratify before building).
+- **G-D1** — Playwright e2e tier: frontend infra (`web/` uses vitest only).
+- **G-D2** — reconcile `specs/features/` vs `api/tests/features/` authority + bind the canonical features (incl. `aggregation_permissions.feature`): structural decision.
