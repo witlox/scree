@@ -197,8 +197,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/RiskViewOut"
                   },
                   "title": "Response List Risks Risks Get"
                 }
@@ -622,9 +621,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Portfolio Rollup Planning Portfolio Get"
+                  "$ref": "#/components/schemas/PortfolioOut"
                 }
               }
             }
@@ -2467,6 +2464,29 @@
         ],
         "title": "DocWriteOut"
       },
+      "EpicOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "capacity": {
+            "type": "integer",
+            "title": "Capacity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "capacity"
+        ],
+        "title": "EpicOut"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2495,6 +2515,61 @@
           "items"
         ],
         "title": "MigrationRunIn"
+      },
+      "PortfolioOut": {
+        "properties": {
+          "epics": {
+            "items": {
+              "$ref": "#/components/schemas/EpicOut"
+            },
+            "type": "array",
+            "title": "Epics"
+          },
+          "epic_count": {
+            "type": "integer",
+            "title": "Epic Count"
+          },
+          "total_capacity": {
+            "type": "integer",
+            "title": "Total Capacity"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "never_indexed": {
+            "type": "boolean",
+            "title": "Never Indexed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "epics",
+          "epic_count",
+          "total_capacity",
+          "next_cursor",
+          "as_of",
+          "never_indexed"
+        ],
+        "title": "PortfolioOut"
       },
       "PreferenceIn": {
         "properties": {
@@ -2599,6 +2674,49 @@
           "space"
         ],
         "title": "RiskCreateIn"
+      },
+      "RiskViewOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "space": {
+            "type": "string",
+            "title": "Space"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "fires_critical_webhook": {
+            "type": "boolean",
+            "title": "Fires Critical Webhook"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "space",
+          "category",
+          "score",
+          "severity",
+          "fires_critical_webhook"
+        ],
+        "title": "RiskViewOut"
       },
       "SourceItemIn": {
         "properties": {

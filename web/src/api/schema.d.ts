@@ -526,6 +526,15 @@ export interface components {
             /** Rev */
             rev: string | null;
         };
+        /** EpicOut */
+        EpicOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Capacity */
+            capacity: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -535,6 +544,21 @@ export interface components {
         MigrationRunIn: {
             /** Items */
             items: components["schemas"]["SourceItemIn"][];
+        };
+        /** PortfolioOut */
+        PortfolioOut: {
+            /** Epics */
+            epics: components["schemas"]["EpicOut"][];
+            /** Epic Count */
+            epic_count: number;
+            /** Total Capacity */
+            total_capacity: number;
+            /** Next Cursor */
+            next_cursor: number | null;
+            /** As Of */
+            as_of: string | null;
+            /** Never Indexed */
+            never_indexed: boolean;
         };
         /** PreferenceIn */
         PreferenceIn: {
@@ -574,6 +598,23 @@ export interface components {
              * @enum {string}
              */
             strategy: "resolve" | "owned" | "accepted" | "mitigated";
+        };
+        /** RiskViewOut */
+        RiskViewOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Space */
+            space: string;
+            /** Category */
+            category: string;
+            /** Score */
+            score: number;
+            /** Severity */
+            severity: string;
+            /** Fires Critical Webhook */
+            fires_critical_webhook: boolean;
         };
         /** SourceItemIn */
         SourceItemIn: {
@@ -707,9 +748,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["RiskViewOut"][];
                 };
             };
             /** @description Validation Error */
@@ -958,9 +997,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["PortfolioOut"];
                 };
             };
             /** @description Validation Error */
