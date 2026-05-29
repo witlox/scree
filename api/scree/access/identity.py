@@ -1,4 +1,6 @@
+import json
 import uuid
+from pathlib import Path
 
 
 class IdentityDirectory:
@@ -30,3 +32,37 @@ class IdentityDirectory:
         email = self._by_id.pop(opaque_id, None)
         if email is not None:
             self._by_email.pop(email, None)
+
+
+class FileIdentityDirectory(IdentityDirectory):
+    """Durable identity directory: the email↔opaque map persists to a JSON file so it
+    survives restarts (in-memory would orphan every ticket's requester on restart).
+
+    The file holds PII (emails), so it lives **outside Git** (INV-DP-1) — at a path on
+    a private, ideally encrypted-at-rest volume, never in a repo. Erasure rewrites the
+    file, dropping the mapping (the GDPR-erase contract, INV-DP-2)."""
+
+    def __init__(self, path: Path | str) -> None:
+        super().__init__()
+        self._path = Path(path)
+        if self._path.exists():
+            data = json.loads(self._path.read_text() or "{}")
+            self._by_email = dict(data.get("by_email", {}))
+            self._by_id = dict(data.get("by_id", {}))
+
+    def _save(self) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._path.with_suffix(self._path.suffix + ".tmp")
+        tmp.write_text(json.dumps({"by_email": self._by_email, "by_id": self._by_id}))
+        tmp.replace(self._path)  # atomic swap so a crash mid-write can't corrupt the map
+
+    def resolve(self, email: str) -> str:
+        before = len(self._by_email)
+        oid = super().resolve(email)
+        if len(self._by_email) != before:  # a new mapping was minted → persist it
+            self._save()
+        return oid
+
+    def erase(self, opaque_id: str) -> None:
+        super().erase(opaque_id)
+        self._save()

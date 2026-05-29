@@ -54,25 +54,37 @@ missing (it raises at startup rather than degrading silently). Required: the
 
 ## Data & backups
 
-Scree's primary data is **Markdown + YAML in Git**, so backups are mostly "back up
-the repos":
+Scree's primary data is **Markdown + YAML in Git**. Each store is durable when you
+point it at a path; leave the path unset and it falls back to an **in-memory** store
+(fine for the demo, **not** production):
 
-- **Knowledge** lives in the repo at `SCREE_DOCS_REPO` (a Git working clone).
-- **Risks** live in the repo at `SCREE_RISKS_REPO`.
-- Back up those repositories (or rely on GitLab's own backups of the upstream
-  projects they clone). The on-disk index is **derived and rebuildable** from Git;
-  you never back it up.
+| Data | Config | Backed by |
+|---|---|---|
+| Knowledge (docs) | `SCREE_DOCS_REPO` | Git working clone |
+| Risks | `SCREE_RISKS_REPO` | Git working clone |
+| **Tickets + comments** | `SCREE_TICKETS_REPO` | Git clone (`tickets/<id>.md` + `tickets/<id>/comments/`) |
+| **Customer identity map** | `SCREE_IDENTITY_DB` | JSON file, **off Git** (holds PII) |
+| **Attachments** | `SCREE_ATTACHMENTS_DIR` | object store (mounted bucket / MinIO) |
+
+- **Back up those repositories and paths** (or rely on GitLab's own backups for the
+  doc/risk projects they clone). The on-disk search index is **derived and
+  rebuildable** from Git; you never back it up.
+- Ticket/comment mutations are commits by the **desk service account**, with the
+  human recorded in an `On-Behalf-Of` commit trailer (INV-ID-4). The requester on a
+  ticket is an **opaque id** — no PII enters Git (INV-DP-1).
+- The **identity map** (`SCREE_IDENTITY_DB`) is the only place customer emails live;
+  keep it on a **private, encrypted-at-rest volume**, never in a repo. GDPR erasure
+  rewrites it.
 - The **audit log** is hash-chained and tamper-evident; for production, write the
-  chain to WORM / append-only storage with retention (the integrity mechanism is
-  in the app, the durable medium is your deployment choice).
+  chain to WORM / append-only storage with retention (the integrity mechanism is in
+  the app, the durable medium is your deployment choice).
 
-> **Current limitation (being addressed).** Service-desk records — **tickets,
-> comments, the customer identity directory** — and **attachments** are presently
-> held **in memory** and do **not** survive a restart. Knowledge and risk are
-> Git-backed and durable; the service-desk side is not yet. Treat the service-desk
-> deployment as ephemeral until the durable stores (Git-backed tickets/comments,
-> durable identity directory, object-storage attachments) land. Do not run
-> external customer support on this build in production.
+> **Residual.** The attachment store is filesystem-backed today (a mounted
+> object-storage volume); a native S3/MinIO client is a drop-in follow-up. Portal
+> **notification preferences** are still in-memory (low-stakes, regenerated on use).
+> If you leave `SCREE_TICKETS_REPO` / `SCREE_IDENTITY_DB` / `SCREE_ATTACHMENTS_DIR`
+> unset, the service-desk side runs in-memory and is **ephemeral** — set all three
+> before running external customer support in production.
 
 ## Migration (big-bang cutover)
 

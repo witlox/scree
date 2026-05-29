@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from scree.access.audit import AuditSink
 from scree.access.authority import Authority
 from scree.access.gitlab import GitLabAuthority
-from scree.access.identity import IdentityDirectory
+from scree.access.identity import FileIdentityDirectory, IdentityDirectory
 from scree.access.oidc import OidcAuthenticator
 from scree.access.openfga import FakeOpenFga, RealOpenFga
 from scree.access.ticket_authority import TicketAuthority
@@ -28,9 +28,12 @@ from scree.gateway.app import create_app
 from scree.knowledge.doc_service import DocService
 from scree.knowledge.git_store import GitBackedDocStore
 from scree.knowledge.store import DocStore
+from scree.portal.stores import AttachmentStore, FileAttachmentStore
 from scree.risk.git_store import GitBackedRiskStore
 from scree.risk.store import RiskStore
 from scree.servicedesk.comments import CommentStore
+from scree.servicedesk.git_comments import GitBackedCommentStore
+from scree.servicedesk.git_store import GitBackedTicketStore
 from scree.servicedesk.store import TicketStore
 
 
@@ -48,17 +51,21 @@ def _require(name: str) -> str:
 def build_app() -> FastAPI:
     dev = os.environ.get("SCREE_DEV") == "1"
 
-    # Storage: Git-backed when a repo path is configured, else in-memory (dev/demo).
+    # Storage: durable when a path is configured, else in-memory (dev/demo).
     docs_repo = os.environ.get("SCREE_DOCS_REPO")
     risks_repo = os.environ.get("SCREE_RISKS_REPO")
+    tickets_repo = os.environ.get("SCREE_TICKETS_REPO")  # tickets + comments live here
+    identity_db = os.environ.get("SCREE_IDENTITY_DB")  # PII map, off Git (INV-DP-1)
+    attachments_dir = os.environ.get("SCREE_ATTACHMENTS_DIR")  # object storage, not Git
     doc_store = GitBackedDocStore(docs_repo) if docs_repo else DocStore([])
     risk_store = GitBackedRiskStore(risks_repo) if risks_repo else RiskStore()
     doc_writer = DocService(doc_store, Authority({}), governed_prefixes=_csv("SCREE_GOVERNED_PREFIXES")) if docs_repo else None
 
     common = dict(
-        ticket_store=TicketStore(),
-        comment_store=CommentStore(),
-        identity_directory=IdentityDirectory(),
+        ticket_store=GitBackedTicketStore(tickets_repo) if tickets_repo else TicketStore(),
+        comment_store=GitBackedCommentStore(tickets_repo) if tickets_repo else CommentStore(),
+        identity_directory=FileIdentityDirectory(identity_db) if identity_db else IdentityDirectory(),
+        attachment_store=FileAttachmentStore(attachments_dir) if attachments_dir else AttachmentStore(),
         risk_store=risk_store,
         doc_writer=doc_writer,
         audit=AuditSink(),
