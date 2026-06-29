@@ -1,6 +1,6 @@
 # Runtime dependencies for the Scree gateway (test-only deps are installed separately
 # in CI). Dependabot tracks these; the Dockerfile installs from here.
-fastapi>=0.137.2
+fastapi>=0.138.1
 uvicorn[standard]>=0.49.0
 httpx>=0.28.1
 pyyaml>=6.0.3
