@@ -141,6 +141,9 @@ shaped the release.
 - `web-e2e (@e2e journeys)` — Playwright against real islands (desktop + mobile).
 - `contract-tests` — `@contract` tier against real Keycloak/OpenFGA/Vault via
   testcontainers (runs on every PR; also nightly).
+- `nightly-changes` — the nightly gate: a scheduled run only executes the
+  test jobs when there are commits newer than the last green nightly; a
+  quiet repo skips instead of burning the same 5 minutes every night.
 
 The standing gap the CI cannot prove is **live verification** against a real
 browser + Keycloak + GitLab; budget a manual pass before cutover.

@@ -1,0 +1,9 @@
+# Test toolchain pins for the GitHub Actions matrix (api-tests / bdd / contract-tests).
+#
+# The nightly installs unpinned `pytest pytest-bdd` otherwise, and pytest 9.2 renamed
+# a private FixtureManager API that pytest-bdd still reads ('_arg2fixturedefs' ->
+# '_arg2node2fixturedefs') — the suite collapses with AttributeError. Install this
+# file AFTER requirements.txt in every CI job that runs pytest. Bump via Dependabot
+# PRs (it watches /api/**.txt), never by float.
+pytest==9.1.0
+pytest-bdd==9.0.0
