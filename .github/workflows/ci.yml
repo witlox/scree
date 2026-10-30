@@ -10,8 +10,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  nightly-changes:
+    # The nightly heartbeat must actually test something new. Compares the commit
+    # under test against the last green scheduled run's commit; when they match
+    # there is nothing new to verify and the test jobs skip (the same
+    # "no changes since last release ⇒ skip" pattern release.yml uses). PR/push
+    # runs always carry a new commit, so the gate passes them through unchanged.
+    name: nightly-changes (gate)
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - name: Check for changes since last green nightly
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Not a scheduled run — gate passes through."
+            exit 0
+          fi
+          LAST_SHA=$(gh api "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?event=schedule&status=success&per_page=1" \
+            --jq '.workflow_runs[0].head_sha // empty' || echo "")
+          THIS_SHA="${{ github.sha }}"
+          if [ -n "$LAST_SHA" ] && [ "$LAST_SHA" = "$THIS_SHA" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No new commits since the last green nightly ($LAST_SHA) — the test jobs skip."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            if [ -z "$LAST_SHA" ]; then
+              echo "No green nightly on record yet — bootstrap run."
+            else
+              echo "New commits since $LAST_SHA — the nightly runs the full suite."
+            fi
+          fi
+
   api-tests:
     name: api-tests
+    needs: nightly-changes
+    if: needs.nightly-changes.outputs.changed != 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -21,13 +60,15 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
           uv venv --python 3.13
-          uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]"
+          uv pip install -r requirements.txt -r requirements-ci.txt
           .venv/bin/pytest -q
 
   bdd:
     name: bdd (@api scenarios)
     # The pytest-bdd Gherkin scenarios (api/tests/features) also run inside api-tests;
     # this surfaces them as their own visible/required check. (@e2e browser BDD: #97.)
+    needs: nightly-changes
+    if: needs.nightly-changes.outputs.changed != 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -37,7 +78,7 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
           uv venv --python 3.13
-          uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]"
+          uv pip install -r requirements.txt -r requirements-ci.txt
           .venv/bin/pytest -q -m api
 
   contract-tests:
@@ -47,6 +88,8 @@ jobs:
     # gherkin (e.g. crypto-shred against a real Vault). Runs on every PR/push (GitHub
     # runners have Docker); the schedule keeps a nightly heartbeat. GitLab @contract
     # tests still skip unless GITLAB_TEST_URL/GITLAB_TEST_TOKEN are provided.
+    needs: nightly-changes
+    if: needs.nightly-changes.outputs.changed != 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -56,11 +99,13 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.local/bin:$PATH"
           uv venv --python 3.13
-          uv pip install fastapi httpx pytest pytest-bdd pyyaml "pyjwt[crypto]" testcontainers
+          uv pip install -r requirements.txt -r requirements-ci.txt testcontainers
           .venv/bin/pytest -q -m contract
 
   web-tests:
     name: web-tests
+    needs: nightly-changes
+    if: needs.nightly-changes.outputs.changed != 'false'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -80,6 +125,8 @@ jobs:
     name: web-e2e (@e2e journeys)
     # Drives the real feature islands in a browser against the canonical *.feature
     # @e2e scenarios (Playwright across desktop + mobile; API is route-mocked).
+    needs: nightly-changes
+    if: needs.nightly-changes.outputs.changed != 'false'
     runs-on: ubuntu-latest
     defaults:
       run:
