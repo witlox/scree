@@ -5,5 +5,5 @@
 # '_arg2node2fixturedefs') — the suite collapses with AttributeError. Install this
 # file AFTER requirements.txt in every CI job that runs pytest. Bump via Dependabot
 # PRs (it watches /api/**.txt), never by float.
-pytest==9.1.0
-pytest-bdd==9.0.0
+pytest==9.2.0
+pytest-bdd==9.0.1
